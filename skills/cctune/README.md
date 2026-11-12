@@ -33,17 +33,23 @@ The run costs roughly 650k to 1M tokens for ten agents over 30 days of a heavy u
 
 ## Install
 
-The skill is user-invoked and imports `scripts/redact.py` from `cctune-apply`, so install
-both folders side by side. Clone once, link both, restart Claude Code:
+Install the plugin (both skills ship together):
 
-```bash
-git clone https://github.com/HT-Moh/skills.git ~/src/skills
-ln -s ~/src/skills/engineering/cctune ~/.claude/skills/cctune
-ln -s ~/src/skills/engineering/cctune-apply ~/.claude/skills/cctune-apply
+```
+/plugin marketplace add HT-Moh/cctune
+/plugin install cctune@cctune
 ```
 
-A symlink keeps `git pull` as the update path. Copying works too (`cp -r` both folders into
-`~/.claude/skills/`), but then updates are manual.
+Or clone and link, which keeps `git pull` as the update path:
+
+```bash
+git clone https://github.com/HT-Moh/cctune.git ~/src/cctune
+ln -s ~/src/cctune/skills/cctune ~/.claude/skills/cctune
+ln -s ~/src/cctune/skills/cctune-apply ~/.claude/skills/cctune-apply
+```
+
+Restart Claude Code after either. The two skills import from each other, so keep them side
+by side.
 
 Requirements: Python 3.10+, `jq`, `gh` (for the quality angle), `curl` (docs fetch). Tests:
-`python3 -m pytest -q engineering/cctune` from the repo root.
+`python3 -m pytest -q skills/cctune` from the repo root.

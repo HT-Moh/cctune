@@ -21,17 +21,23 @@ Selection tokens: an id (`P1-02`), a phase (`phase1`), `safe`, or `all`.
 
 ## Install
 
-Install together with `cctune`, which imports `scripts/redact.py` from this folder. Clone
-once, link both, restart Claude Code:
+Install the plugin (both skills ship together):
 
-```bash
-git clone https://github.com/HT-Moh/skills.git ~/src/skills
-ln -s ~/src/skills/engineering/cctune ~/.claude/skills/cctune
-ln -s ~/src/skills/engineering/cctune-apply ~/.claude/skills/cctune-apply
+```
+/plugin marketplace add HT-Moh/cctune
+/plugin install cctune@cctune
 ```
 
-A symlink keeps `git pull` as the update path. Copying works too (`cp -r` both folders into
-`~/.claude/skills/`), but then updates are manual.
+Or clone and link, which keeps `git pull` as the update path:
 
-Requirements: Python 3.10+. Tests: `python3 -m pytest -q engineering/cctune-apply` from the
-repo root.
+```bash
+git clone https://github.com/HT-Moh/cctune.git ~/src/cctune
+ln -s ~/src/cctune/skills/cctune ~/.claude/skills/cctune
+ln -s ~/src/cctune/skills/cctune-apply ~/.claude/skills/cctune-apply
+```
+
+Restart Claude Code after either. The two skills import from each other, so keep them side
+by side.
+
+Requirements: Python 3.10+. Tests: `python3 -m pytest -q skills/cctune-apply` from the repo
+root.
