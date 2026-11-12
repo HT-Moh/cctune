@@ -11,7 +11,7 @@ a secret value. The audit changes nothing.
 Built and tested on one heavy setup: over 1,000 sessions, 8.7 GB of transcripts, 339 installed skills,
 21 plugins. The first run found three API tokens stored as literals in `settings.json`, 42 stale
 project entries in `~/.claude.json`, 103 skills never invoked in 30 days, and a compaction
-window set near 1M tokens. The plan it wrote had 46 items.
+window set near 1M tokens. The plan it wrote had 58 items.
 
 ## Install
 
