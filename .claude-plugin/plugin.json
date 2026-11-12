@@ -1,0 +1,17 @@
+{
+  "name": "cctune",
+  "description": "Tune your Claude Code setup from your own transcripts: audit sessions and config, get a ranked plan, apply items with preview, digest and rollback.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Mohamed Habbat",
+    "url": "https://github.com/HT-Moh"
+  },
+  "homepage": "https://github.com/HT-Moh/cctune#readme",
+  "repository": "https://github.com/HT-Moh/cctune",
+  "license": "MIT",
+  "keywords": ["claude-code", "audit", "tuning", "settings", "hooks", "skills"],
+  "skills": [
+    "./skills/cctune",
+    "./skills/cctune-apply"
+  ]
+}

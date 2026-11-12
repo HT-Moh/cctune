@@ -1,0 +1,20 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "cctune",
+  "description": "cctune: tune your Claude Code setup from your own transcripts.",
+  "owner": {
+    "name": "Mohamed Habbat",
+    "url": "https://github.com/HT-Moh"
+  },
+  "plugins": [
+    {
+      "name": "cctune",
+      "source": "./",
+      "description": "Two user-invoked skills: /cctune audits your sessions and config into a ranked plan; /cctune-apply applies the items you pick with preview, digest and rollback.",
+      "category": "productivity",
+      "tags": ["audit", "tuning", "settings", "hooks", "security"],
+      "repository": "https://github.com/HT-Moh/cctune",
+      "homepage": "https://github.com/HT-Moh/cctune#readme"
+    }
+  ]
+}
