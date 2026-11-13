@@ -65,3 +65,14 @@ Process traps
   it cannot be done in either order. Put the prerequisite first (secrets file before the
   rotation, with the current values), then rotate into it. `plan_render.py` prints a
   `WARNING:` for each such pair.
+- A manual `claude mcp add` step with `-e` before the server name fails with "missing
+  required argument 'name'": `-e <env...>` is variadic and swallows the name. Write the
+  name first, every `-e` after it, `--` before the command. Check every CLI in a manual
+  step against its `--help` output from this run, not from memory.
+- "Rotate the key at <vendor>.dev" is wrong when the URL key beside it points at the
+  user's own host (FIRECRAWL_URL -> firecrawl.bicatalyst.ch). Resolve the host of every
+  `*_URL` key before naming where a key is rotated; self-hosted means the deployment config.
+- Rotation before removing the literals breaks the service: Claude Code writes
+  `settings.json` `env` into its own environment and `.zshrc` exports run after a sourced
+  secrets file, so the old literal wins over the rotated value. Order: secrets file and
+  `${VAR}` wiring, then delete the literals, then rotate one key at a time.

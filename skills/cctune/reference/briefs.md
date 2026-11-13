@@ -177,4 +177,6 @@ a quoted rule or a plan rather than the assistant's own report? does a Read of
 same task or two tasks that share a sentence shape? does a proposed skill contain a path,
 token or name from a sample prompt that must not be in a skill file? is a
 `missed_skill_sessions` entry a keyword coincidence? read the location before keeping it. does every manual op carry `steps` with one action each and the exact command in
-`code`, or a paragraph the user must parse?
+`code`, or a paragraph the user must parse? does each command in `code` match the
+`--help` of the installed tool (flag order, variadic options such as `-e <env...>`)? does the
+order of phase-0 items respect which value wins at runtime (settings `env` over shell)?
