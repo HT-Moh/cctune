@@ -10,7 +10,7 @@ import os
 import stat
 from dataclasses import dataclass
 
-from ops_base import check_path
+from ops_base import check_read_path
 from plan_schema import CHECK_KINDS, PlanError, cmd_form_error, parse_file_mode
 
 MAX_READ_BYTES = 2_000_000
@@ -24,8 +24,8 @@ class CheckResult:
 
 
 def _path(check: dict) -> str:
-    """The checked file, under the same path policy as the ops; raises PlanError when refused."""
-    return check_path(str(check.get("file", "")))
+    """The checked file, under the read policy (wider than the ops' write policy); raises PlanError when refused."""
+    return check_read_path(str(check.get("file", "")))
 
 
 def _read(path: str, mode: str = "r"):

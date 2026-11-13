@@ -155,3 +155,24 @@ def test_file_mode_accepts_octal_string(tmp_home):
     os.chmod(p, 0o600)
     assert run_one([{"phase": "post", "kind": "file_mode", "file": str(p), "mode": "600"}]).ok
     assert not run_one([{"phase": "post", "kind": "file_mode", "file": str(p), "mode": "644"}]).ok
+
+
+def test_file_contains_may_read_shell_startup_file(tmp_home):
+    rc = tmp_home / ".zshrc"
+    rc.write_text("set -a; . ~/.config/claude/secrets.env; set +a\n")
+    assert run_one([{"phase": "post", "kind": "file_contains", "file": str(rc), "text": "secrets.env"}]).ok
+
+
+def test_file_contains_may_read_claude_json(tmp_home):
+    cj = tmp_home / ".claude.json"
+    cj.write_text('{"mcpServers": {}}\n')
+    assert run_one([{"phase": "post", "kind": "json_absent", "file": str(cj), "path": ["mcpServers", "firecrawl"]}]).ok
+
+
+@pytest.mark.parametrize("rel", [".ssh/config", ".gnupg/secring.gpg", ".aws/credentials", ".kube/config"])
+def test_checks_still_refuse_credential_stores(tmp_home, rel):
+    p = tmp_home / rel
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text("x\n")
+    r = run_one([{"phase": "post", "kind": "file_contains", "file": str(p), "text": "x"}])
+    assert not r.ok and "refused" in r.detail

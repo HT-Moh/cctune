@@ -150,3 +150,24 @@ def test_check_path_refuses_tune_dir(tmp_home):
     for rel in ("tune/backups/x/00_settings.json", "tune/plans/latest.json"):
         with pytest.raises(PlanError):
             tune_ops.check_path(str(tmp_home / ".claude" / rel))
+
+
+def test_check_read_path_allows_startup_file_in_home(tmp_home):
+    rc = tmp_home / ".zshrc"
+    rc.write_text("x\n")
+    assert tune_ops.check_read_path(str(rc)) == str(rc)
+
+
+def test_check_read_path_refuses_system_and_credential_paths(tmp_home):
+    with pytest.raises(PlanError):
+        tune_ops.check_read_path("/etc/passwd")
+    with pytest.raises(PlanError):
+        tune_ops.check_read_path(str(tmp_home / ".ssh" / "id_rsa"))
+
+
+def test_check_read_path_refuses_startup_file_symlinked_into_ssh(tmp_home):
+    (tmp_home / ".ssh").mkdir()
+    (tmp_home / ".ssh" / "id_rsa").write_text("k\n")
+    os.symlink(str(tmp_home / ".ssh" / "id_rsa"), str(tmp_home / ".zshrc"))
+    with pytest.raises(PlanError):
+        tune_ops.check_read_path(str(tmp_home / ".zshrc"))
