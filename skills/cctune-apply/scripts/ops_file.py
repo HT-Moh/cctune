@@ -106,6 +106,14 @@ def _resolve_target(link, target):
     return os.path.realpath(os.path.expanduser(base))
 
 
+def _target_exists(resolved, overlay):
+    """True when the target is on disk, or an earlier op of the same run created it or a file inside it."""
+    if os.path.exists(resolved):
+        return True
+    inside = resolved.rstrip(os.sep) + os.sep
+    return any(text is not None and (p == resolved or p.startswith(inside)) for p, text in (overlay or {}).items())
+
+
 def preview_symlink(op, path, overlay=None):
     target = op.get("target", "")
     if not target:
@@ -117,7 +125,7 @@ def preview_symlink(op, path, overlay=None):
     except PlanError as exc:
         r.errors.append(f"symlink target refused: {exc}")
         return r
-    if not os.path.exists(resolved):
+    if not _target_exists(resolved, overlay):
         r.errors.append(f"symlink target does not exist: {resolved}")
     elif os.path.islink(path):
         if os.path.realpath(path) != resolved:

@@ -101,6 +101,15 @@ def test_symlink_missing_target_is_error(tmp_home):
     assert r.errors and "target" in r.errors[0]
 
 
+def test_symlink_target_created_earlier_in_item_is_ok(tmp_home):
+    skill = str(tmp_home / ".agents" / "skills" / "x" / "SKILL.md")
+    link = str(tmp_home / ".claude" / "skills" / "x")
+    ops = [{"kind": "file_create", "file": skill, "content": "---\nname: x\n---\n"},
+           {"kind": "symlink", "link": link, "target": "../../.agents/skills/x"}]
+    results = tune_ops.preview_item_ops(ops)
+    assert not results[1].errors and results[1].changed
+
+
 def test_symlink_target_outside_allowlist_is_error(tmp_home):
     link = str(tmp_home / ".claude" / "skills" / "x")
     r = tune_ops.preview({"kind": "symlink", "link": link, "target": "/etc"})
