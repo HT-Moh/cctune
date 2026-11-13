@@ -72,6 +72,11 @@ def _under(path, root):
     return path == root or path.startswith(root.rstrip("/") + "/")
 
 
+def _under_any_case(path, root):
+    """Refusals compare case-insensitively: on a case-insensitive file system ~/.SSH is ~/.ssh."""
+    return _under(path.casefold(), root.casefold())
+
+
 def _in_git_worktree(real):
     """True for a file inside a repository whose root is neither $HOME nor a dot-directory."""
     home = _home()
@@ -121,11 +126,11 @@ def _refuse_write_lexical(path):
     """Refusals that hold for the path as written, before any symlink is resolved."""
     home = _home()
     _refuse_read_lexical(path)
-    if os.path.basename(path) in RC_BASENAMES:
+    if os.path.basename(path).casefold() in RC_BASENAMES:
         raise PlanError(f"shell startup file refused: {path}")
-    if path == os.path.join(home, ".claude.json"):
+    if path.casefold() == os.path.join(home, ".claude.json").casefold():
         raise PlanError("~/.claude.json is rewritten by running sessions; use `claude mcp add/remove` or edit with all sessions closed")
-    if any(_under(path, os.path.join(home, rel)) for rel in REFUSED_USER_PATHS):
+    if any(_under_any_case(path, os.path.join(home, rel)) for rel in REFUSED_USER_PATHS):
         raise PlanError(f"login-time or credential path refused: {path}")
 
 
@@ -133,7 +138,7 @@ def _refuse_read_lexical(path):
     home = _home()
     if any(part.casefold() == ".git" for part in path.split("/")):
         raise PlanError(f"git metadata refused: {path}")
-    if any(_under(path, os.path.join(home, rel)) for rel in CREDENTIAL_STORES):
+    if any(_under_any_case(path, os.path.join(home, rel)) for rel in CREDENTIAL_STORES):
         raise PlanError(f"credential path refused: {path}")
 
 

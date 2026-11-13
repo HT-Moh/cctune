@@ -187,3 +187,15 @@ def test_check_read_path_allows_claude_json_and_write_roots(tmp_home):
     cj.write_text("{}\n")
     assert tune_ops.check_read_path(str(cj)) == str(cj)
     assert tune_ops.check_read_path(str(tmp_home / ".config" / "claude" / "secrets.env")).endswith("secrets.env")
+
+
+@pytest.mark.parametrize("rel", [".claude/TUNE/plan.json", ".claude/Tune/backups/x"])
+def test_check_path_refuses_tune_dir_in_any_case(tmp_home, rel):
+    """On a case-insensitive file system ~/.claude/TUNE is ~/.claude/tune; refuse it everywhere."""
+    with pytest.raises(PlanError):
+        tune_ops.check_path(str(tmp_home / rel))
+
+
+def test_check_read_path_refuses_credential_dir_in_any_case(tmp_home):
+    with pytest.raises(PlanError):
+        tune_ops.check_read_path(str(tmp_home / ".config" / "claude" / ".." / ".." / ".SSH" / "id_rsa"))
