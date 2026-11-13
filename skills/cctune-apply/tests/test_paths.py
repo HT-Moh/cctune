@@ -171,3 +171,19 @@ def test_check_read_path_refuses_startup_file_symlinked_into_ssh(tmp_home):
     os.symlink(str(tmp_home / ".ssh" / "id_rsa"), str(tmp_home / ".zshrc"))
     with pytest.raises(PlanError):
         tune_ops.check_read_path(str(tmp_home / ".zshrc"))
+
+
+def test_check_read_path_refuses_other_files_under_home(tmp_home):
+    for rel in (".netrc", ".git-credentials", "notes.txt", ".config/gh/hosts.yml"):
+        p = tmp_home / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("x\n")
+        with pytest.raises(PlanError):
+            tune_ops.check_read_path(str(p))
+
+
+def test_check_read_path_allows_claude_json_and_write_roots(tmp_home):
+    cj = tmp_home / ".claude.json"
+    cj.write_text("{}\n")
+    assert tune_ops.check_read_path(str(cj)) == str(cj)
+    assert tune_ops.check_read_path(str(tmp_home / ".config" / "claude" / "secrets.env")).endswith("secrets.env")

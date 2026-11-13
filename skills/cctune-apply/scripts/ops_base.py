@@ -98,8 +98,9 @@ def check_path(path):
 def check_read_path(path):
     """Return the absolute path a check may read, or raise PlanError saying why not.
 
-    Reads are wider than writes: a check must see that ~/.zshrc sources the secrets file or that
-    ~/.claude.json lost an entry. Credential stores and system paths stay refused.
+    Reads cover the write roots plus two files checks must see: ~/.claude.json (an entry was
+    removed) and the shell startup files in $HOME (the secrets file is sourced). Nothing else:
+    a check result is a one-bit oracle, so it must not reach ~/.netrc or any other secret.
     """
     return _validate(path, _refuse_read_lexical, _validate_read_real)
 
@@ -161,12 +162,20 @@ def _validate_write_real(real):
 
 def _validate_read_real(real):
     _refuse_read_lexical(real)
-    if _under(real, _home()):
+    home = _home()
+    if any(_under(real, os.path.join(home, rel)) for rel in ALLOWED_USER_ROOTS):
+        return
+    if real == os.path.join(home, ".claude.json") or real in _home_startup_files(home):
         return
     _refuse_system(real)
     if _in_git_worktree(real):
         return
-    raise PlanError(f"path outside $HOME or a git work tree: {real}")
+    raise PlanError(f"path outside the read allowlist (~/.claude, ~/.agents, ~/.config/claude, "
+                    f"~/.claude.json, shell startup files, a git work tree): {real}")
+
+
+def _home_startup_files(home):
+    return {os.path.join(home, name) for name in RC_BASENAMES}
 
 
 def _refuse_system(real):
