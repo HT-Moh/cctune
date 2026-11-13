@@ -293,3 +293,16 @@ def test_warnings_stay_silent_for_ordering_words_before_a_dependent():
     first = item(id="P0-01", risk="manual", ops=[{"kind": "manual", "text": "Do this before P0-03 and P0-04; it unblocks P0-10."}])
     deps = [item(id=i, risk="manual", depends_on=["P0-01"], ops=[{"kind": "manual", "text": "x"}]) for i in ("P0-03", "P0-04", "P0-10")]
     assert plan_lint.warnings(plan(first, *deps)) == []
+
+
+@pytest.mark.parametrize("mode", ["abc", "999", 1.5, True, None])
+def test_validate_rejects_bad_file_mode_check(mode):
+    check = {"phase": "post", "kind": "file_mode", "file": SETTINGS, "mode": mode}
+    errs = plan_schema.validate(plan(item(checks=[check])))
+    assert any("mode" in e for e in errs)
+
+
+@pytest.mark.parametrize("mode", ["600", "0600", 0o600, 384])
+def test_validate_accepts_octal_file_mode_check(mode):
+    check = {"phase": "post", "kind": "file_mode", "file": SETTINGS, "mode": mode}
+    assert plan_schema.validate(plan(item(checks=[check]))) == []

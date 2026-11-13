@@ -63,7 +63,7 @@ Write it to `~/.claude/tune/plans/<YYYY-MM-DD>-<4 chars of session id>.json`, th
   failure; `post` runs after the write and rolls the item back on failure; `deferred` only
   prints. Kinds: `json_equals {file, path, value}`, `json_absent {file, path}`,
   `file_contains {file, text}`, `file_absent {file}`, `file_sha256 {file, sha256}`,
-  `file_mode {file, mode}`, `note {text}`, and `cmd_exit {argv}` which is never executed: it is
+  `file_mode {file, mode}` (mode as an octal string such as `"600"` or an int), `note {text}`, and `cmd_exit {argv}` which is never executed: it is
   validated (argv[0] in `test`, `stat`, `grep`, `ls`, `readlink`, or `claude --version|--help|mcp
   list|mcp get|plugin list`) and shown to the user to run, so it is allowed in phase `deferred` only.
 - Effective risk: the engine raises `safe` to `review` when any op is `json_delete`,

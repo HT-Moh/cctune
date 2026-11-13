@@ -147,3 +147,11 @@ def test_run_checks_turns_exceptions_into_failures(monkeypatch):
 def test_deferred_cmd_exit_is_not_executed():
     r = run_one([{"phase": "deferred", "kind": "cmd_exit", "argv": ["test", "-d", "/"]}], phase="deferred")
     assert r.ok and "not run" in r.detail
+
+
+def test_file_mode_accepts_octal_string(tmp_home):
+    p = tmp_home / ".claude" / "a.md"
+    p.write_text("x\n")
+    os.chmod(p, 0o600)
+    assert run_one([{"phase": "post", "kind": "file_mode", "file": str(p), "mode": "600"}]).ok
+    assert not run_one([{"phase": "post", "kind": "file_mode", "file": str(p), "mode": "644"}]).ok
