@@ -1,0 +1,5 @@
+# Pin the rule set: ruff's defaults differ between versions, and CI installs the latest.
+target-version = "py310"
+
+[lint]
+select = ["E4", "E7", "E9", "F"]
