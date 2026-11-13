@@ -15,7 +15,7 @@ metadata:
 # Claude Code tuning audit
 
 Window: `$days` days (empty = 30). Projects: `$projects` (empty = the busiest five
-below). Focus: `$focus` (empty = all; one of cost, speed, quality, security,
+below). Focus: `$focus` (empty = all; one of cost, speed, quality, security, prompting,
 automation). Session: `${CLAUDE_SESSION_ID}` (this session's id; the work dir is named after it).
 
 ## Rules that override everything else
@@ -52,7 +52,7 @@ Reference files. Read all six with the Read tool before step 1; paste `schema.md
 into every agent brief:
 - `${CLAUDE_SKILL_DIR}/reference/schema.md`: paths, event schema, signal strings, populations
 - `${CLAUDE_SKILL_DIR}/reference/docs.md`: pages to fetch and the feature checklist to grade
-- `${CLAUDE_SKILL_DIR}/reference/briefs.md`: the ten agent briefs (A–K) and the adversarial pass
+- `${CLAUDE_SKILL_DIR}/reference/briefs.md`: the eleven agent briefs (A–L) and the adversarial pass
 - `${CLAUDE_SKILL_DIR}/reference/traps.md`: mistakes earlier audits made; check each against the draft
 - `${CLAUDE_SKILL_DIR}/reference/plan.md`: the `plan.json` schema, op kinds, preconditions, checks, patterns
 - `${CLAUDE_SKILL_DIR}/reference/report.md`: the report structure
@@ -81,11 +81,11 @@ match aborts the skill.
    unverified done claims) and the coverage keys (skills matched by a prompt but never
    invoked, MCP servers configured but never called). Treat its numbers as the baseline
    every agent must stay consistent with.
-3. **Agents.** Launch the briefs in `reference/briefs.md` (A–K) with the Agent tool, all in
+3. **Agents.** Launch the briefs in `reference/briefs.md` (A–L) with the Agent tool, all in
    one message, each with the header, `reference/schema.md`, the scan summary, the window
    and the project list; K also gets the inventory totals and the coverage keys. Choose
    `model: sonnet` for the counting angles (A, C, D, E, H, I, K)
-   and the main model for B, F, G. If `$focus` is set, run only the angles that serve it plus
+   and the main model for B, F, G, L. If `$focus` is set, run only the angles that serve it plus
    F and H. Wait for every report (rule 7).
 4. **Synthesis.** Turn the findings into plan items per `reference/plan.md`: id, phase,
    risk, why, evidence, docs URL, impact with a number, `depends_on`, `consumers` (who reads

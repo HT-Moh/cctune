@@ -164,6 +164,42 @@ is two skills that both fit; read it once and keep the one the task was about. T
 Evidence per item: the skill name, `sessions` from `missed_skill_sessions`, the locations you
 read, and the real-miss count. Never quote the prompt text.
 
+## L. Prompting and the global instruction layer
+Population `cli`, interactive sessions with 4+ real user messages. This angle reads how
+the user writes, not how the harness is set up (A–K). Four parts.
+
+1. Opening prompts. For the 20 longest sessions, read the first user message and grade it
+   on four points: states the goal, names the done-criterion, names the files or paths,
+   states a constraint (scope, model, budget). Then count correction turns in the next 5
+   user messages (a message that negates or redirects: `no`, `not that`, `I meant`, `stop`,
+   `wrong`, a repeated request). Report the share of sessions corrected before the first
+   commit and which of the four points the corrected prompts lacked most often.
+2. Questions asked back. `AskUserQuestion` calls and the wait each caused
+   (`tool_wait_seconds_total_n_mean`). For the 10 longest waits, read the question and the
+   prompt before it: name what the prompt left open and the one line that would have
+   pre-answered it (a `CLAUDE.md` default, a skill `$ARGUMENTS`, a rule such as "when X,
+   assume Y"). A question the user answered the same way 3+ times is a missing rule.
+3. The global layer. `~/.claude/CLAUDE.md`, every file it imports, `~/.claude/rules/*.md`,
+   and the text hooks inject on every prompt (`UserPromptSubmit`, `SessionStart`). Count
+   its tokens. Quote every pair of overlapping or conflicting rules with `path:line` for
+   both. For each rule that transcripts can check (file length, no scratch files, read
+   before edit, tests before done), give the compliance count from the scan or a grep and
+   say whether the rule, the wording or the placement should change. A rule that holds in
+   100% of sessions is a candidate for removal; one that fails in most sessions is a
+   candidate for a hook, not a longer sentence.
+4. Steering sentences. From `patterns.near_duplicate_prompts` and the correction turns of
+   part 1, list the sentences the user types to steer (`proceed`, `use rtk`, `no notes`,
+   `ask first`). Each becomes one of: a rule with its destination file, a
+   `UserPromptSubmit` hook with `additionalContext` when it depends on the prompt, a
+   user-invocable skill when it is a recurring task (hand the cluster to brief F's
+   procedure), or nothing when it steered one session only. If the inventory says
+   `insights_report=none`, propose a manual item that runs `/insights` and reads the report
+   into the next audit.
+
+Quote at most 15 words of any user prompt; never quote a sample marked
+`[redacted: secret-shaped]`. Items from this angle go to phase 2 (instruction layer) or
+phase 5 (workflow) with the session count behind each.
+
 ## J. Adversarial review (after the draft)
 Give the full draft and ask: which disabled item is used (counts)? which rule misses
 the real command form? which hook can loop or block on old errors or break in a

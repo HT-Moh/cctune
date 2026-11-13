@@ -28,7 +28,7 @@ Python 3.10+, `jq`, `curl`, and `gh` for the quality angle.
 ```
 /cctune                      # 30 days, your five busiest projects
 /cctune 14                   # 14 days
-/cctune 30 myapp,infra cost  # two projects, one focus (cost, speed, quality, security, automation)
+/cctune 30 myapp,infra cost  # two projects, one focus (cost, speed, quality, security, prompting, automation)
 ```
 
 The run launches ten read-only agents plus an adversarial review and costs roughly 650k to 1M
