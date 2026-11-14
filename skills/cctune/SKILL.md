@@ -93,22 +93,29 @@ match aborts the skill.
    `contains_secret`, structured `checks`, and ops that a script can execute (or a `manual` op
    whose `steps` give one action each with the exact command in `code`). Put `expect` (the value you saw) on every `json_set`/`json_delete`
    under `env`, `permissions`, `hooks`. Check every item in `reference/traps.md` against the draft.
+   Before drafting, run `python3 ${CLAUDE_SKILL_DIR}/../cctune-apply/scripts/apply.py --history`:
+   the ledger lists every change earlier plans applied, did or dismissed. Do not re-propose an
+   applied or done change unless the evidence says it was undone; never re-propose a dismissed
+   one (quote its reason in the report instead). Items never carry a `status` field.
 5. **Adversarial pass.** Launch brief J with the full draft. Fold its findings in.
    Remove any item that a used feature, a doc page or a trap contradicts.
 6. **Plan file.** Write the plan with the Write tool to
    `~/.claude/tune/plans/<YYYY-MM-DD>-<first 4 chars of session id>.json` (the tool creates the directory). Then:
-   `python3 ${CLAUDE_SKILL_DIR}/scripts/plan_render.py <plan> --md <plan>.md --html <plan>.html --latest`.
-   Fix every `INVALID:` line and rerun until it prints `valid:`. If `--latest` refuses because
-   the previous plan has applied items, tell the user and ask before adding `--force-latest`.
+   `python3 ${CLAUDE_SKILL_DIR}/scripts/plan_render.py <plan> --md <plan>.md --html <plan>.html`.
+   Fix every `INVALID:` line and rerun until it prints `valid:`. Each `LEDGER:` line names an
+   item an earlier run already settled; drop it from the plan or keep it knowingly. The newest
+   plan by `generated` is the current one; nothing points at it and nothing needs forcing.
 7. **Preflight.** Run `python3 ${CLAUDE_SKILL_DIR}/../cctune-apply/scripts/apply.py --dry-run all --plan <plan>`
    (the apply skill lives next to this one).
    An `ERROR` line means an op will not apply on this machine (text not found, file exists,
    refused path, precondition failed): fix the op and rerun step 6. `blocked by` lines are
    expected for items behind manual work. If the apply skill is absent, say so in the report.
-8. **Report.** Publish `<plan>.html` with the Artifact tool (icon `checklist`, description
-   "Claude Code tuning plan: tick items, copy the preview and apply commands"). Record the
-   link in the plan so `/cctune-apply --page` can find and refresh it:
-   `python3 ${CLAUDE_SKILL_DIR}/../cctune-apply/scripts/apply.py --set-page <artifact url> --plan <plan>`. In the
+8. **Report.** Run `python3 ${CLAUDE_SKILL_DIR}/../cctune-apply/scripts/apply.py --page`. If it
+   prints a `page:` URL, publish `<plan>.html` to that URL with the Artifact tool (`url` = the
+   link): one page follows the user across runs. Only when it prints `no page recorded`,
+   publish `<plan>.html` as a new artifact (icon `checklist`, description "Claude Code tuning
+   plan: tick items, copy the preview and apply commands") and record the link once:
+   `python3 ${CLAUDE_SKILL_DIR}/../cctune-apply/scripts/apply.py --set-page <artifact url>`. In the
    terminal give only what `reference/report.md` asks for: the summary, the five biggest
    levers, the findings by angle, the unused-features list, the contradiction check, the
    not-verified list, the Artifact link and the line

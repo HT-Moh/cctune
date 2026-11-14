@@ -1,7 +1,7 @@
 ---
 name: cctune-apply
 description: Preview, apply, explain or roll back chosen items of the latest cctune plan, selected by id (P1-02), phase (phase1) or risk (safe). Every write is previewed first and bound to a digest, backed up, and undone one item at a time. Run after /cctune has produced a plan.
-argument-hint: '[P1-02 ...|phaseN|safe|all] [--dry-run] [--explain ID] [--rollback ID] [--done ID] [--purge-backup ID] [--page]'
+argument-hint: '[P1-02 ...|phaseN|safe|all] [--dry-run] [--explain ID] [--rollback ID] [--done ID] [--dismiss ID --reason TEXT] [--history] [--purge-backup ID] [--page]'
 disable-model-invocation: true
 allowed-tools: Bash(python3 ${CLAUDE_SKILL_DIR}/scripts/apply.py *) Read(~/.claude/tune/plans/**) AskUserQuestion Artifact
 disallowed-tools: Edit Write NotebookEdit
@@ -29,7 +29,9 @@ Selection: `$ARGUMENTS` (empty: show the plan and stop).
 5. A `manual` item is the user's work. It counts as done only after `--done ID`; the script
    runs the item's post-checks before recording it.
 6. The Artifact page from the audit does not refresh by itself. The script re-renders the
-   HTML and Markdown beside the plan after every change; `--list` is the current state.
+   HTML and Markdown beside the plan after every change; `--list` is the current state. The
+   plan file itself is never edited: statuses live in `~/.claude/tune/ledger.jsonl`, keyed by
+   the change each item makes, so a newer plan shows what an older one applied.
    After any change (apply, `--done`, `--rollback`, `--set-page`), run
    `python3 ${CLAUDE_SKILL_DIR}/scripts/apply.py --page` and publish the `html:` file to the
    `page:` URL with the Artifact tool (`url` = that link, same file path) so the page shows
@@ -50,7 +52,8 @@ python3 ${CLAUDE_SKILL_DIR}/scripts/apply.py --list
 - **`--page`**: run `python3 ${CLAUDE_SKILL_DIR}/scripts/apply.py --page`, open the `page:`
   link with the Artifact tool (`action: open`) and give the user the link.
 - **`--explain ID`, `--rollback ID...`, `--done ID...`, `--undone ID...`,
-  `--purge-backup ID`, `--render`, `--set-page URL`**: run exactly
+  `--dismiss ID... --reason TEXT`, `--history`, `--purge-backup ID`, `--render`,
+  `--set-page URL`**: run exactly
   `python3 ${CLAUDE_SKILL_DIR}/scripts/apply.py $ARGUMENTS`. Report every `WARNING` line
   verbatim. For `--rollback`, if the script refuses because a file changed after apply, show
   the message and ask before adding `--force`.
@@ -83,8 +86,10 @@ python3 ${CLAUDE_SKILL_DIR}/scripts/apply.py --list
 | `phase1`, `p1` | every open item of that phase |
 | `safe` | every open item whose effective risk is `safe` |
 | `all` | every open item; `manual` ones are printed, not executed |
-| `--plan FILE` | a plan under `~/.claude/tune/plans/` other than `latest.json` |
+| `--plan FILE` | an older plan under `~/.claude/tune/plans/`; without it the newest plan is used |
+| `--dismiss ID --reason TEXT` | the user does not want this change; the next audit skips it and quotes the reason |
+| `--history` | every change the ledger knows, with the run that settled it and its last state |
 
-Open means not applied, done, rolled back, failed or waiting on the user. Dependencies: an
+Open means not applied, done, rolled back, failed, dismissed or waiting on the user. Dependencies: an
 item is refused while a dependency is neither applied, done, nor a non-manual item selected in
 the same run. The refusal names the missing id.
