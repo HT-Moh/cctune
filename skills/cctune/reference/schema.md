@@ -72,14 +72,14 @@ and the brief that interprets it:
 | Key | Measures | Brief |
 |---|---|---|
 | `reverts` | Bash `git checkout --`, `git reset`, `git revert`, `git stash`, `git restore` by form | G |
-| `dangerous_forms` | `rm -rf`, `git push --force` (not `--force-with-lease`), `git reset --hard`, `git clean -f`, `--no-verify` | D, H |
+| `dangerous_forms` | `rm -rf`, `git push --force` (not `--force-with-lease`), `git reset --hard`, `git clean -f`, `--no-verify`; the 5-count cut in brief D is a heuristic | D, H |
 | `credential_reads` | Read of `.env*`, `id_*`, `*.pem`, `*.key`, `credentials`, `.netrc` (not `.example`/`.sample`) | H |
 | `premature_sessions`, `premature_share` | sessions whose first tool call is Edit/Write before any Read/Grep/Glob | G |
 | `churn_files_over_5_edits` | (session, path) pairs edited more than 5 times | G |
 | `repeated_bash` | identical Bash command issued twice in a row | C |
 | `duplicate_reads`, `duplicate_read_chars` | a Read of a path already read in the session, and the chars re-read | I |
 | `oversized_results_over_20k` | tool results above 20,000 chars, by tool | I |
-| `tool_wait_seconds_total_n_mean` | result minus use for non-Bash tools (includes permission wait); top 20 by total | D |
+| `tool_wait_seconds_total_n_mean` | result minus use for non-Bash tools (includes permission wait); top 20 by total; the 3 s mean cut in brief D is a heuristic | D |
 | `nudge_prompts` | whole-message prompts such as `proceed`, `continue`, `yes` | B, F |
 | `near_duplicate_prompts` | prompts equal after numbers, paths and quoted spans are replaced; cluster objects, see below | B, F |
 | `done_claims`, `done_without_verify` | assistant text claiming tests pass or work complete; the subset with no test/lint command since the last user prompt | G |

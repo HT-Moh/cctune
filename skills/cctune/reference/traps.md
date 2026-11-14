@@ -15,6 +15,10 @@ Measurement artefacts
   an edit; `tool_wait` on AskUserQuestion, Agent and Workflow is the user or the agent
   working, not permission wait; `reverts` in subagents include worktree setup. Read
   samples before turning a count into an item.
+- Idle gaps are review or absence, not "think time"; the median gap across sessions is
+  about 25 min, so a 30-min cut drops half the data. Report the distribution.
+- `/loop`, a ralph loop or an "always continue" rule as the fix for nudge prompts: an
+  unattended loop without a runnable check over-persists. `/goal <check>` or a Stop hook.
 - A skill induced from repeated prompts must not carry a value from any sample: no path,
   branch, PR number, host or token. Replace them with `$ARGUMENTS` or a placeholder and
   state the rule in the skill body.
