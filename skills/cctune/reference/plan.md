@@ -1,8 +1,13 @@
 # plan.json: the machine-readable output of the audit
 
-One file is the source of truth for the report, the Artifact page and `/cctune-apply`.
-Write it to `~/.claude/tune/plans/<YYYY-MM-DD>-<4 chars of session id>.json`, then run
-`plan_render.py` on it. Never put a secret value in it: key names and paths only.
+The plan is an immutable proposal. Write it to
+`~/.claude/tune/plans/<YYYY-MM-DD>-<4 chars of session id>.json`, then run `plan_render.py` on
+it. Never put a secret value in it: key names and paths only. Item state (applied, done,
+dismissed, rolled back) is never written into the plan: `/cctune-apply` appends it to
+`~/.claude/tune/ledger.jsonl`, keyed by a fingerprint of the change (kind, file and path for
+JSON ops; normalised text for file ops; step commands for manual ops), and overlays it on any
+plan being read. The newest plan by `generated` is the current one. The page URL lives in the
+ledger too; `page_url` in a plan is legacy input the first load imports.
 
 ```json
 {

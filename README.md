@@ -33,7 +33,9 @@ Python 3.10+, `jq`, `curl`, and `gh` for the quality angle.
 
 The run launches ten read-only agents plus an adversarial review and costs roughly 650k to 1M
 tokens for a heavy user. You get a plan at `~/.claude/tune/plans/<date>-<id>.json`, a Markdown
-report and an HTML checklist page published as an Artifact. Then:
+report and an HTML checklist page published as an Artifact. Plans are immutable proposals; what
+you applied, did or dismissed lives in `~/.claude/tune/ledger.jsonl`, keyed by the change itself,
+so the next audit shows it as settled and the page keeps one URL. Then:
 
 ```
 /cctune-apply                     # the plan as a table
@@ -42,6 +44,8 @@ report and an HTML checklist page published as an Artifact. Then:
 /cctune-apply --explain P0-02     # why, evidence, who reads the value, step-by-step commands
 /cctune-apply --done P0-02        # record a manual item as done
 /cctune-apply --rollback P1-03    # restore from that item's backup
+/cctune-apply --dismiss P2-04 --reason "cron prunes these"   # never propose it again
+/cctune-apply --history           # everything earlier plans settled
 ```
 
 ## What it finds
@@ -98,7 +102,7 @@ official docs (fetched) ──► 10 analysis agents + adversarial pass ──�
 
 Issues and pull requests are welcome. The bar:
 
-- `python3 -m pytest -q` green (441 tests) and `ruff check skills tests` clean. CI runs both on
+- `python3 -m pytest -q` green (462 tests) and `ruff check skills tests` clean. CI runs both on
   Python 3.10 and 3.12.
 - Files under 300 lines, functions under 30, one concern per commit.
 - A bug fix comes with the test that failed before it.

@@ -63,6 +63,8 @@ Instruction-layer traps
 
 Process traps
 - Scratch under `/tmp` dies with a reboot; plans and state go in the repo.
+- Status edited into a plan file by hand is ignored: the ledger owns state. Record it with
+  `--done`, `--dismiss` or an apply, never with an editor.
 - 1M-context sessions compact near 967k; `/autocompact 300k` is the largest lever on
   model time for long sessions.
 - Merge only when CI is green; `gh pr checks --watch` in the background, never

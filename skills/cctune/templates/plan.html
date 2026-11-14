@@ -100,7 +100,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
   var planEl = document.getElementById("plan");
   var plan = JSON.parse(planEl.textContent);
   var PHASES = { 0: "Security", 1: "Global config", 2: "Instruction files", 3: "Skills, rules, scripts", 4: "Pipelines", 5: "Habits", 6: "Later" };
-  var CLOSED = { applied: 1, done: 1, "applied-purged": 1 };
+  var CLOSED = { applied: 1, done: 1, "applied-purged": 1, dismissed: 1 };
   var STORE = "cctune-selection-" + (plan.generated || "");
   var selected = {};
   try { selected = JSON.parse(localStorage.getItem(STORE) || "{}"); } catch (e) { selected = {}; }

@@ -5,7 +5,9 @@
   apply.py --dry-run SELECTION...          prints the diffs and a digest
   apply.py SELECTION... --expect DIGEST [--confirmed ID,ID]
   apply.py --explain ID
-  apply.py --done ID... | --undone ID...   record manual items the user did
+  apply.py --done ID... | --undone ID...   record manual items the user did (undone also reopens a dismissed item)
+  apply.py --dismiss ID... --reason TEXT   never propose this change again, with the reason the next audit reads
+  apply.py --history                       what earlier plans already applied, did or dismissed (the ledger)
   apply.py --rollback ID... [--force]
   apply.py --purge-backup ID
   apply.py --render | --migrate
@@ -21,6 +23,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import backup  # noqa: E402
 import checks  # noqa: E402
+import ledger  # noqa: E402
 import plan_store  # noqa: E402
 import report  # noqa: E402
 import runner  # noqa: E402
@@ -47,6 +50,9 @@ def parse(argv):
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--done", nargs="+", metavar="ID")
     ap.add_argument("--undone", nargs="+", metavar="ID")
+    ap.add_argument("--dismiss", nargs="+", metavar="ID")
+    ap.add_argument("--reason", default="")
+    ap.add_argument("--history", action="store_true")
     ap.add_argument("--explain", metavar="ID")
     ap.add_argument("--purge-backup", metavar="ID")
     ap.add_argument("--render", action="store_true")
@@ -113,6 +119,12 @@ def cmd_undone(plan, plan_path, ids):
     say(f"{', '.join(ids)} back to proposed")
 
 
+def cmd_dismiss(plan, plan_path, ids, reason):
+    selection.mark_dismissed(plan, ids, reason)
+    plan_store.save_plan(plan, plan_path)
+    say(f"{', '.join(ids)} dismissed; the next audit skips this change. Undo with --undone")
+
+
 def cmd_purge(plan, plan_path, item_id):
     item = selection.by_id(plan).get(item_id)
     if item is None or item.get("status") != "applied":
@@ -134,12 +146,14 @@ def cmd_set_page(plan, plan_path, url):
 
 def cmd_migrate(plan, plan_path):
     raised = [it["id"] for it in plan["items"] if it.get("risk") == "safe" and effective_risk(it) == "review"]
-    plan_store.save_plan(plan, plan_path)
+    plan_store.rewrite_plan(plan, plan_path)
     say(f"{plan_path}: schema {plan['schema']} saved" + (f"; effective risk is review for: {', '.join(raised)}" if raised else ""))
 
 
 def dispatch(a) -> None:
     plan, plan_path = plan_store.load_plan(a.plan)
+    for warning in ledger.warnings():
+        say(f"WARNING {warning}")
     if a.explain:
         item = selection.by_id(plan).get(a.explain)
         if item is None:
@@ -147,6 +161,8 @@ def dispatch(a) -> None:
         return say(report.explain(item, plan))
     if a.page:
         return say(report.page_lines(plan, plan_path))
+    if a.history:
+        return say(report.history_table(ledger.history()))
     if a.set_page:
         cmd_set_page(plan, plan_path, a.set_page)
     elif a.rollback:
@@ -155,6 +171,8 @@ def dispatch(a) -> None:
         cmd_done(plan, plan_path, a.done)
     elif a.undone:
         cmd_undone(plan, plan_path, a.undone)
+    elif a.dismiss:
+        cmd_dismiss(plan, plan_path, a.dismiss, a.reason)
     elif a.purge_backup:
         cmd_purge(plan, plan_path, a.purge_backup)
     elif a.migrate:
@@ -171,8 +189,8 @@ def dispatch(a) -> None:
 def main(argv) -> int:
     a = parse(argv)
     tune_ops.secure_umask()
-    if a.list and not os.path.exists(a.plan or plan_store.latest_path()):
-        say(f"no plan at {a.plan or plan_store.latest_path()}. Run /cctune first.")
+    if a.list and not (a.plan or plan_store.newest_plan()):
+        say(f"no plan under {plan_store.plans_dir()}. Run /cctune first.")
         return 0
     try:
         with plan_store.locked():

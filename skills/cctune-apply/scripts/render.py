@@ -15,11 +15,13 @@ def render_after_change(plan_path) -> Path:
     """Write <plan>.md and <plan>.html beside the plan; return the HTML path."""
     if TUNE_SCRIPTS not in sys.path:
         sys.path.insert(0, TUNE_SCRIPTS)
+    import ledger
     import plan_render
     from plan_migrate import migrate_v1
-    plan_path = Path(os.path.realpath(plan_path))  # through latest.json to the plan file itself
+    plan_path = Path(os.path.realpath(plan_path))
     with open(plan_path, encoding="utf-8") as fh:
         plan = migrate_v1(json.load(fh))
+    ledger.overlay(plan)
     md_path = plan_path.with_name(plan_path.name + ".md")
     html_path = plan_path.with_name(plan_path.name + ".html")
     plan_render.render_files(plan, str(plan_path), str(md_path), str(html_path))

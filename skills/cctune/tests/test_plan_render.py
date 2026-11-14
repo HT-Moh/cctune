@@ -122,3 +122,26 @@ def test_template_renders_steps_and_pins_the_highlighter_version():
     assert "window.hljs" in tpl
     links = [line for line in tpl.splitlines() if line.startswith("<link")]
     assert all("fonts.googleapis.com" in line for line in links), "the artifact viewer blocks third-party stylesheets"
+
+
+def test_main_overlays_ledger_state_and_reports_carried_items(tmp_path, monkeypatch, capsys):
+    import ledger
+    home = tmp_path / "home"
+    plans = home / ".claude" / "tune" / "plans"
+    plans.mkdir(parents=True)
+    monkeypatch.setenv("HOME", str(home))
+    item = mkitem("P1-01", [{"kind": "json_set", "file": SETTINGS, "path": ["a"], "value": 1}])
+    ledger.record([dict(item, status="applied", backup="/b")], {}, run="earlier.json")
+    plan_path = plans / "p.json"
+    plan_path.write_text(json.dumps(mkplan(item)))
+    monkeypatch.setattr("sys.argv", ["plan_render.py", str(plan_path), "--md", str(tmp_path / "p.md"), "--html", str(tmp_path / "p.html")])
+    plan_render.main()
+    out = capsys.readouterr().out
+    assert "LEDGER: P1-01 applied in earlier.json" in out and "carried=1" in out
+    assert "status: applied" in (tmp_path / "p.md").read_text()
+    assert not json.loads(plan_path.read_text())["items"][0].get("status", "proposed") != "proposed"
+
+
+def test_main_has_no_latest_flags():
+    import inspect
+    assert "--latest" not in inspect.getsource(plan_render)

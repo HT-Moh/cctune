@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Validate a cctune plan.json and render it as Markdown and as an HTML page.
 
-Usage: plan_render.py PLAN.json [--md OUT.md] [--html OUT.html] [--latest] [--force-latest]
---latest also points ~/.claude/tune/plans/latest.json at PLAN.json (refused while the old plan
-has applied items unless --force-latest).
-Exit 1 when the plan is invalid; the errors name the item and field.
+Usage: plan_render.py PLAN.json [--md OUT.md] [--html OUT.html]
+The ledger's state is overlaid before rendering: an item an earlier plan applied, did or
+dismissed renders with that status and is listed as `LEDGER: <id> <status> in <run>`, so the
+audit can drop or keep it knowingly. Exit 1 when the plan is invalid; the errors name the item
+and field.
 Validation lives in cctune-apply/scripts/plan_schema.py (shared). Prints no file contents.
 """
 import argparse
@@ -16,6 +17,8 @@ import sys
 
 APPLY_SCRIPTS = os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "cctune-apply", "scripts")
 sys.path.insert(0, os.path.realpath(APPLY_SCRIPTS))
+import ledger  # noqa: E402
+from plan_fingerprint import fingerprint  # noqa: E402
 from plan_lint import warnings  # noqa: E402
 from plan_migrate import migrate_v1  # noqa: E402
 from plan_risk import effective_risk  # noqa: E402
@@ -24,6 +27,7 @@ from redact import redact  # noqa: E402
 
 TEMPLATE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "templates", "plan.html")
 TIME_FMT = "%Y-%m-%d %H:%M"
+CARRIED = ("applied", "done", "dismissed", "applied-purged")
 
 
 def blockers_of(item, plan):
@@ -124,13 +128,22 @@ def render_files(plan, plan_path, md_path, html_path):
                 fh.write(text)
 
 
+def carried_lines(plan):
+    """One line per item whose state an earlier run settled, after `ledger.overlay`."""
+    runs = {r["fp"]: r["run"] for r in ledger.history()}
+    out = []
+    for it in plan["items"]:
+        run = runs.get(fingerprint(it))
+        if run and it.get("status", "proposed") in CARRIED:
+            out.append(f"LEDGER: {it['id']} {it['status']} in {run}")
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("plan")
     ap.add_argument("--md")
     ap.add_argument("--html")
-    ap.add_argument("--latest", action="store_true")
-    ap.add_argument("--force-latest", action="store_true", help="repoint latest.json even if the old plan has applied items")
     a = ap.parse_args()
     with open(a.plan, encoding="utf-8") as fh:
         plan = migrate_v1(json.load(fh))
@@ -140,15 +153,14 @@ def main():
         sys.exit(1)
     for warning in warnings(plan):
         print("WARNING: " + warning)
+    ledger.overlay(plan)
+    carried = carried_lines(plan)
+    print("\n".join(carried + [f"WARNING: {w}" for w in ledger.warnings()]))
     render_files(plan, a.plan, a.md, a.html)
-    if a.latest:
-        from pathlib import Path
-        from plan_store import point_latest
-        point_latest(Path(a.plan), force=a.force_latest)
     n = len(plan["items"])
     by = {r: sum(1 for i in plan["items"] if effective_risk(i) == r) for r in RISKS}
-    print(f"valid: {n} items (safe={by['safe']} review={by['review']} manual={by['manual']})"
-          + (f"; md={a.md}" if a.md else "") + (f"; html={a.html}" if a.html else "") + ("; latest.json updated" if a.latest else ""))
+    print(f"valid: {n} items (safe={by['safe']} review={by['review']} manual={by['manual']}) carried={len(carried)}"
+          + (f"; md={a.md}" if a.md else "") + (f"; html={a.html}" if a.html else ""))
 
 
 if __name__ == "__main__":

@@ -10,7 +10,9 @@ import re
 from plan_risk import effective_risk
 from plan_schema import PlanError, topo_order
 
-GROUP_EXCLUDED = ("applied", "done", "rolled_back", "needs_user", "failed", "applied-purged")
+GROUP_EXCLUDED = ("applied", "done", "rolled_back", "needs_user", "failed", "applied-purged", "dismissed")
+REOPENABLE = ("done", "dismissed")
+DISMISSABLE = ("proposed", "needs_user", "failed", "rolled_back")
 SATISFIED_STATES = ("applied", "done")
 PHASE_RE = re.compile(r"^(?:phase|p)(\d)$", re.I)
 
@@ -87,8 +89,21 @@ def mark_done(plan: dict, ids: list[str], run_post_checks=lambda item: None) -> 
 
 
 def mark_undone(plan: dict, ids: list[str]) -> None:
+    """A done or dismissed item goes back to proposed."""
     for it in _require(plan, ids):
-        if it.get("status") != "done":
-            raise PlanError(f"{it['id']} is {it.get('status')}, not done")
+        if it.get("status") not in REOPENABLE:
+            raise PlanError(f"{it['id']} is {it.get('status')}, not done or dismissed")
         it["status"] = "proposed"
         it.pop("done_at", None)
+        it.pop("reason", None)
+
+
+def mark_dismissed(plan: dict, ids: list[str], reason: str) -> None:
+    """Record that the user does not want these items; the next audit reads the reason."""
+    if not reason.strip():
+        raise PlanError("--dismiss needs --reason <why>, so the next audit can skip the item for a stated cause")
+    for it in _require(plan, ids):
+        if it.get("status", "proposed") not in DISMISSABLE:
+            raise PlanError(f"{it['id']} is {it.get('status')}; roll it back or undo it before dismissing")
+        it["status"] = "dismissed"
+        it["reason"] = reason.strip()

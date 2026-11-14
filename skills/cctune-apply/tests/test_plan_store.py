@@ -11,12 +11,12 @@ from plan_schema import PlanError
 SETTINGS = "~/.claude/settings.json"
 
 
-def v2_item(id="P1-01", status="proposed"):
-    return {"id": id, "phase": 1, "title": "t", "risk": "safe", "why": "w", "evidence": "e",
+def v2_item(id="P1-01", status="proposed", **over):
+    return {**{"id": id, "phase": 1, "title": "t", "risk": "safe", "why": "w", "evidence": "e",
             "docs": "https://x", "impact": "i", "depends_on": [], "consumers": [], "reversible": "full",
             "blast_radius": "user", "takes_effect": "next-session", "contains_secret": False, "checks": [],
             "status": status,
-            "ops": [{"kind": "json_set", "file": SETTINGS, "path": ["autoCompactWindow"], "value": 400000}]}
+            "ops": [{"kind": "json_set", "file": SETTINGS, "path": ["autoCompactWindow"], "value": 400000}]}, **over}
 
 
 def v2_plan(*items):
@@ -51,19 +51,64 @@ def test_load_reports_invalid_plan(plan_file):
         plan_store.load_plan(str(path))
 
 
-def test_load_default_uses_latest_symlink(plan_file):
-    path = plan_file(v2_plan())
-    plan_store.point_latest(path)
+def test_load_default_uses_the_newest_plan_by_generated_not_by_name(plan_file):
+    older = v2_plan()
+    older["generated"] = "2026-11-10T00:00:00"
+    newer = v2_plan()
+    newer["generated"] = "2026-11-13T00:00:00"
+    plan_file(older, "z-later-name.json")
+    expected = plan_file(newer, "a-earlier-name.json")
     plan, loaded = plan_store.load_plan(None)
-    assert loaded.resolve() == path.resolve()
+    assert loaded == expected and plan["generated"] == "2026-11-13T00:00:00"
 
 
-def test_save_is_atomic_and_0600(plan_file):
+def test_load_without_any_plan_says_run_cctune(tmp_home):
+    with pytest.raises(PlanError, match="Run /cctune first"):
+        plan_store.load_plan(None)
+
+
+def test_load_overlays_ledger_state_onto_the_plan(plan_file):
+    import ledger
+    path = plan_file(v2_plan())
+    ledger.record([v2_item(status="applied", backup="/b")], {}, run="earlier.json")
+    plan, _ = plan_store.load_plan(str(path))
+    assert plan["items"][0]["status"] == "applied" and plan["items"][0]["backup"] == "/b"
+
+
+def test_save_appends_to_the_ledger_and_leaves_the_plan_file_untouched(plan_file):
+    import ledger
+    path = plan_file(v2_plan())
+    before = path.read_bytes()
+    plan, _ = plan_store.load_plan(str(path))
+    plan["items"][0].update(status="applied", backup="/b", files=["/x"])
+    plan["page_url"] = "https://claude.ai/artifact/abc"
+    plan_store.save_plan(plan, path)
+    assert path.read_bytes() == before
+    assert ledger.load_state()[ledger.fingerprint(v2_item())]["status"] == "applied"
+    assert ledger.page_url() == "https://claude.ai/artifact/abc"
+    assert stat.S_IMODE(os.stat(ledger.ledger_path()).st_mode) == 0o600
+    plan2, _ = plan_store.load_plan(str(path))
+    assert plan2["items"][0]["files"] == ["/x"] and plan2["page_url"] == "https://claude.ai/artifact/abc"
+
+
+def test_first_load_bootstraps_the_ledger_from_legacy_plans_and_drops_latest(plan_file):
+    import ledger
+    old = plan_file(v2_plan(v2_item(status="applied", backup="/b")), "old.json")
+    (old.parent / "latest.json").symlink_to(old)
+    newer = v2_plan()
+    newer["generated"] = "2099-01-01T00:00:00"
+    new = plan_file(newer, "new.json")
+    plan, loaded = plan_store.load_plan(None)
+    assert loaded == new and plan["items"][0]["status"] == "applied"
+    assert ledger.ledger_path().exists() and not (old.parent / "latest.json").exists()
+
+
+def test_rewrite_plan_is_atomic_and_0600(plan_file):
     path = plan_file(v2_plan())
     plan = json.loads(path.read_text())
-    plan["items"][0]["status"] = "applied"
-    plan_store.save_plan(plan, path)
-    assert json.loads(path.read_text())["items"][0]["status"] == "applied"
+    plan["summary"] = "migrated"
+    plan_store.rewrite_plan(plan, path)
+    assert json.loads(path.read_text())["summary"] == "migrated"
     assert stat.S_IMODE(os.stat(path).st_mode) == 0o600
     assert [p for p in os.listdir(path.parent) if p.endswith(".tmp")] == []
 
@@ -76,41 +121,11 @@ def test_locked_blocks_second_holder(tmp_home):
         os.close(fd)
 
 
-def test_point_latest_refuses_when_old_plan_has_applied_items(plan_file):
-    old = plan_file(v2_plan(v2_item(status="applied")), "old.json")
-    plan_store.point_latest(old)
-    new = plan_file(v2_plan(), "new.json")
-    with pytest.raises(PlanError, match="P1-01"):
-        plan_store.point_latest(new)
-    assert os.path.realpath(plan_store.latest_path()) == str(old.resolve())
-
-
-def test_point_latest_force_overrides(plan_file):
-    old = plan_file(v2_plan(v2_item(status="applied")), "old.json")
-    plan_store.point_latest(old)
-    new = plan_file(v2_plan(), "new.json")
-    plan_store.point_latest(new, force=True)
-    assert os.path.realpath(plan_store.latest_path()) == str(new.resolve())
-
-
-def test_point_latest_refuses_outside_plans_dir(tmp_home):
-    outside = tmp_home / "plan.json"
-    outside.write_text(json.dumps(v2_plan()))
-    with pytest.raises(PlanError):
-        plan_store.point_latest(outside)
-
-
-def test_load_plan_returns_the_real_file_not_the_latest_link(plan_file):
-    path = plan_file(v2_plan(), "real.json")
-    plan_store.point_latest(path)
-    _, loaded = plan_store.load_plan(None)
-    assert loaded.name == "real.json"
-
-
-def test_render_after_change_through_latest_writes_beside_real_plan(plan_file):
+def test_render_after_change_overlays_ledger_state(plan_file):
+    import ledger
     import render
     path = plan_file(v2_plan(), "real.json")
-    plan_store.point_latest(path)
-    html = render.render_after_change(plan_store.latest_path())
+    ledger.record([v2_item(status="applied", backup="/b")], {}, run="r")
+    html = render.render_after_change(path)
     assert html.name == "real.json.html" and (path.parent / "real.json.md").exists()
-    assert not (path.parent / "latest.json.html").exists()
+    assert '"status": "applied"' in html.read_text()
