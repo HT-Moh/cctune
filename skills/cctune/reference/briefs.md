@@ -34,7 +34,7 @@ Tool sequences of 3+ steps that recur and are not a skill yet: start from
 sessions each appears in); for each sequence in 5+ sessions, read two sessions to name the
 task it serves and say whether an installed skill already covers it (brief F has the list).
 Interrupts and the action right before each: start from `patterns.interrupt_before_tool`
-and `patterns.repeated_bash` in the scan, then label each interrupt with one of: missing
+and `patterns.repeated_tool_calls` in the scan, then label each interrupt with one of: missing
 context or correction, slow or excessive action, user takes the next step, requirement
 change, other. `patterns.nudge_prompts` counts `proceed`/`continue` messages: 10+ in the
 window means the user is driving a loop by hand; recommend `/goal <check>` with a runnable
@@ -44,7 +44,8 @@ over-persistence is a measured failure mode.
 
 ## C. Waits and operations
 Top 20 Bash patterns by total wall time; calls over 120 s and 600 s timeouts;
-identical retries (`patterns.repeated_bash` is the count; find the command prefixes). `sleep`/`until`/`watch` loops and what they wait for (CI, deploy,
+identical retries (the `Bash` row of `patterns.repeated_tool_calls` is the count; find the
+command prefixes; brief G interprets the other tools). `sleep`/`until`/`watch` loops and what they wait for (CI, deploy,
 pod rollout, pipeline). Background runs: completed, failed, stopped, orphaned.
 Remote commands (ssh, kubectl, docker, curl) split into read-only and write forms,
 with the real command prefixes seen (rules must match those). Secret-reading forms
@@ -126,7 +127,13 @@ sessions whose first tool call edits before any read and `patterns.premature_cor
 the subset the user corrected within 5 messages: report the second, the first is descriptive;
 `patterns.churn_files_over_5_edits` counts files edited more than 5 times in one session;
 `patterns.reverts` counts `git revert` and soft `git reset` and is never a quality headline
-(revert rates of agent and human commits are alike). For each, read 5 sessions and name the cause with one of: no runnable
+(revert rates of agent and human commits are alike). Loops: `patterns.repeated_tool_calls`
+(identical input twice in a row, by tool), `patterns.search_loops_3plus` and
+`patterns.failed_edit_streaks` (2+ failed Edit/Write results in a row; recovery odds fall with
+each one), with `patterns.tool_error_rate` behind them: read 5 sessions per counter and name
+what the loop waited for. `patterns.test_file_edits_in_fix_sessions` over `patterns.fix_sessions`:
+a fix that edits the test file and then passes is how an agent clears an impossible task;
+read every flagged session and say whether the test change was the fix or the cheat. For each, read 5 sessions and name the cause with one of: no runnable
 check named, spec underspecified, edit before read, scope grew. Never "no plan mode" or "no
 test first": neither is measured to help. State what the numbers cannot show.
 

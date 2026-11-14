@@ -77,7 +77,11 @@ and the brief that interprets it:
 | `premature_sessions`, `premature_share` | sessions whose first tool call is Edit/Write before any Read/Grep/Glob; descriptive, unvalidated | G |
 | `premature_corrected_sessions` | the subset where one of the 5 user messages after the first edit is an interrupt or opens with a negation (`no`, `wrong`, `undo`, `I meant`) | G |
 | `churn_files_over_5_edits` | (session, path) pairs edited more than 5 times | G |
-| `repeated_bash` | identical Bash command issued twice in a row | C |
+| `repeated_tool_calls` | identical `tool_use.input` issued twice in a row, by tool (top 10) | G |
+| `search_loops_3plus` | runs of 3+ consecutive Grep/Glob calls | G |
+| `failed_edit_streaks` | runs of 2+ consecutive `is_error` results on Edit/Write | G |
+| `tool_error_rate` | `{tool: [errors, calls, rate]}` for the 10 tools with most errors | G |
+| `fix_sessions`, `test_file_edits_in_fix_sessions` | sessions whose first prompt names a fix, bug, error or crash; the subset that edited a test path and then ran a passing test command | G |
 | `duplicate_reads`, `duplicate_read_chars` | a Read of a path already read in the session, and the chars re-read | I |
 | `oversized_results_over_20k` | tool results above 20,000 chars, by tool | I |
 | `tool_wait_seconds_total_n_mean` | result minus use for non-Bash tools (includes permission wait); top 20 by total; the 3 s mean cut in brief D is a heuristic | D |

@@ -99,11 +99,6 @@ def test_file_churn_counts_paths_edited_over_five_times(tmp_path):
     assert pop.patterns.churn_files == 1
 
 
-def test_repeated_bash_counts_identical_consecutive_commands(tmp_path):
-    pop = scan(tmp_path, [bash("a", "pytest -q"), bash("b", "pytest -q"), bash("c", "ls"), bash("d", "pytest -q")])
-    assert pop.patterns.repeated_bash == 1
-
-
 def test_duplicate_reads_and_oversized_results(tmp_path):
     big = "x" * 20001
     pop = scan(tmp_path, [tool_use("a", "Read", {"file_path": "/r/x.py"}), tool_result("a", big, 1),

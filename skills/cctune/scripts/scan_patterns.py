@@ -9,6 +9,7 @@ import hashlib
 import re
 
 import scan_commands
+import scan_quality
 import scan_sequences
 from scan_prompts import PromptCluster, cluster_rows, is_nudge, near_key  # noqa: F401  (re-exported)
 
@@ -21,8 +22,7 @@ CORRECTION_RE = re.compile(r"^\W*(no\b|not\b|stop\b|wrong\b|don'?t\b|do not\b|un
 CORRECTION_WINDOW = 5
 CREDENTIAL_PATH_RE = re.compile(r"(^|/)(\.env(\.[^/]*)?|id_(rsa|dsa|ecdsa|ed25519)|credentials(\.json)?|\.netrc|[^/]*\.(pem|key|p12|pfx))$")
 CREDENTIAL_EXAMPLE_RE = re.compile(r"\.(example|sample|template|dist)$")
-TEST_RE = re.compile(r"\b(pytest|jest|vitest|mocha|cargo test|go test|make (test|check)|(npm|pnpm|yarn|bun) (run )?test|"
-                     r"tox|unittest|rspec|phpunit|ruff|mypy|tsc|eslint|golangci-lint)\b")
+TEST_RE = scan_quality.TEST_RE
 DONE_RE = re.compile(r"\b(tests? (now )?(pass|passing|green)|all green|suite (is )?green|implementation complete|"
                      r"done and (verified|tested)|verified (locally|in|with|by))\b", re.I)
 
@@ -71,7 +71,7 @@ class Patterns:
         self.premature_sessions = 0
         self.premature_corrected = 0
         self.churn_files = 0
-        self.repeated_bash = 0
+        self.quality = scan_quality.Quality()
         self.duplicate_reads = 0
         self.duplicate_read_chars = 0
         self.oversized_results = collections.Counter()
@@ -98,7 +98,7 @@ class Session:
         self.after_edit_msgs = None
         self.corrected = False
         self.last_tool = None
-        self.last_bash = None
+        self.quality = scan_quality.SessionQuality()
         self.edits = collections.Counter()
         self.reads = collections.Counter()
         self.verified = False
@@ -114,6 +114,7 @@ def on_user_text(text, sess, pat):
         pat.interrupt_before[sess.last_tool or "(none)"] += 1
         return
     sess.verified = False
+    scan_quality.on_prompt(text, sess.quality)
     if is_nudge(text):
         pat.nudges += 1
     pat.near_prompts[near_key(text)].add(sess.name)
@@ -146,6 +147,7 @@ def on_tool_use(block, sess, pat):
     if sess.first_tool is None:
         sess.first_tool = name
     sess.last_tool = name
+    scan_quality.on_tool_use(name, inp, sess.quality, pat.quality)
     scan_sequences.record(scan_sequences.token_of(name, inp), sess.recent_tools, sess.name, pat.sequences)
     if name == "Agent":
         sess.agents.add(block.get("id"))
@@ -160,10 +162,6 @@ def on_tool_use(block, sess, pat):
 
 
 def _on_bash(cmd, sess, pat):
-    digest = hashlib.sha256(" ".join(cmd.split()).encode("utf-8")).hexdigest()
-    if digest == sess.last_bash:
-        pat.repeated_bash += 1
-    sess.last_bash = digest
     if TEST_RE.search(cmd):
         sess.verified = True
     for words in scan_commands.segments(cmd) or []:
@@ -187,6 +185,7 @@ def on_tool_result(block, call, sess, pat, elapsed):
     """`call` is (name, input) recorded at tool_use time; `elapsed` is None without timestamps."""
     name, inp = call
     sess.agents.discard(block.get("tool_use_id"))
+    scan_quality.on_tool_result(name, inp, bool(block.get("is_error")), sess.quality, pat.quality)
     chars = result_chars(block.get("content"))
     if chars > OVERSIZED_CHARS:
         pat.oversized_results[name] += 1
@@ -207,6 +206,7 @@ def finish_session(sess, pat):
         pat.premature_corrected += int(sess.corrected)
     pat.churn_files += sum(1 for n in sess.edits.values() if n > CHURN_EDITS)
     pat.orphaned_agents += len(sess.agents)
+    scan_quality.finish_session(sess.quality, pat.quality)
     total = sess.cache_creation + sess.cache_read
     if total:
         pat.cache_miss_ratio.append(round(sess.cache_creation / total, 3))
@@ -228,7 +228,7 @@ def summary(pat, n_sessions):
         "credential_reads": pat.credential_reads,
         "premature_sessions": pat.premature_sessions, "premature_share": round(pat.premature_sessions / n_sessions, 3) if n_sessions else 0,
         "premature_corrected_sessions": pat.premature_corrected,
-        "churn_files_over_5_edits": pat.churn_files, "repeated_bash": pat.repeated_bash,
+        "churn_files_over_5_edits": pat.churn_files,
         "duplicate_reads": pat.duplicate_reads, "duplicate_read_chars": pat.duplicate_read_chars,
         "oversized_results_over_20k": pat.oversized_results.most_common(),
         "tool_wait_seconds_total_n_mean": waits,
@@ -237,4 +237,5 @@ def summary(pat, n_sessions):
         "interrupt_before_tool": pat.interrupt_before.most_common(10), "orphaned_agents": pat.orphaned_agents,
         "cache_miss_ratio_median": _pct(pat.cache_miss_ratio, 0.5), "cache_miss_ratio_p90": _pct(pat.cache_miss_ratio, 0.9),
         "recurring_tool_sequences": scan_sequences.rows(pat.sequences),
+        **scan_quality.summary(pat.quality),
     }
