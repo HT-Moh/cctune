@@ -123,6 +123,6 @@ match aborts the skill.
 
 ## Scale guidance
 
-Ten agents over 30 days of a heavy user cost roughly 650k–1M tokens in total.
+Eleven agents plus the adversarial pass over 30 days of a heavy user cost roughly 650k–1M tokens in total.
 Under a focus, run the subset the Focus table in `reference/briefs.md` names. If the inventory shows fewer than 20
 interactive sessions, skip brief B's timing analysis and say so.

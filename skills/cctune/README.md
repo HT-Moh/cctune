@@ -30,7 +30,7 @@ propose a skill, a `$ARGUMENTS` skill or a CLAUDE.md line for each cluster.
 /cctune 30 "" prompting     # default projects, one focus (cost, speed, quality, security, prompting, automation)
 ```
 
-The run costs roughly 650k to 1M tokens for ten agents over 30 days of a heavy user.
+The run costs roughly 650k to 1M tokens for eleven agents plus an adversarial review over 30 days of a heavy user.
 
 ## Install
 
