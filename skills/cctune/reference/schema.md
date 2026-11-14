@@ -71,26 +71,53 @@ and the brief that interprets it:
 
 | Key | Measures | Brief |
 |---|---|---|
-| `reverts` | Bash `git checkout --`, `git reset`, `git revert`, `git stash`, `git restore` by form | G |
-| `dangerous_forms` | `rm -rf`, `git push --force` (not `--force-with-lease`), `git reset --hard`, `git clean -f`, `--no-verify` | D, H |
+| `reverts` | Bash `git revert` and `git reset` without `--hard` (`--hard` is a dangerous form). Descriptive only: revert rate is insensitive to AI quality (1.1% vs 1.6% human) | G |
+| `dangerous_forms` | `rm -rf`, `git push --force` (not `--force-with-lease`), `git reset --hard`, `git clean -f`, `--no-verify`; the 5-count cut in brief D is a heuristic | D, H |
 | `credential_reads` | Read of `.env*`, `id_*`, `*.pem`, `*.key`, `credentials`, `.netrc` (not `.example`/`.sample`) | H |
-| `premature_sessions`, `premature_share` | sessions whose first tool call is Edit/Write before any Read/Grep/Glob | G |
+| `premature_sessions`, `premature_share` | sessions whose first tool call is Edit/Write before any Read/Grep/Glob; descriptive, unvalidated | G |
+| `premature_corrected_sessions` | the subset where one of the 5 user messages after the first edit is an interrupt or opens with a negation (`no`, `wrong`, `undo`, `I meant`) | G |
 | `churn_files_over_5_edits` | (session, path) pairs edited more than 5 times | G |
-| `repeated_bash` | identical Bash command issued twice in a row | C |
+| `repeated_tool_calls` | identical `tool_use.input` issued twice in a row, by tool (top 10) | G |
+| `search_loops_3plus` | runs of 3+ consecutive Grep/Glob calls | G |
+| `failed_edit_streaks` | runs of 2+ consecutive `is_error` results on Edit/Write | G |
+| `tool_error_rate` | `{tool: [errors, calls, rate]}` for the 10 tools with most errors | G |
+| `fix_sessions`, `test_file_edits_in_fix_sessions` | sessions whose first prompt names a fix, bug, error or crash; the subset that edited a test path and then ran a passing test command | G |
 | `duplicate_reads`, `duplicate_read_chars` | a Read of a path already read in the session, and the chars re-read | I |
 | `oversized_results_over_20k` | tool results above 20,000 chars, by tool | I |
-| `tool_wait_seconds_total_n_mean` | result minus use for non-Bash tools (includes permission wait); top 20 by total | D |
+| `tool_wait_seconds_total_n_mean` | result minus use for non-Bash tools (includes permission wait); top 20 by total; the 3 s mean cut in brief D is a heuristic | D |
 | `nudge_prompts` | whole-message prompts such as `proceed`, `continue`, `yes` | B, F |
 | `near_duplicate_prompts` | prompts equal after numbers, paths and quoted spans are replaced; cluster objects, see below | B, F |
 | `done_claims`, `done_without_verify` | assistant text claiming tests pass or work complete; the subset with no test/lint command since the last user prompt | G |
 | `interrupt_before_tool` | tool called right before each `[Request interrupted by user` | B |
 | `orphaned_agents` | Agent calls with no tool_result before the file ends | E |
 | `cache_miss_ratio_median`, `_p90` | per session, `cache_creation / (cache_creation + cache_read)` | I |
+| `human_turns_per_session_median`, `_p90`, `tool_calls_per_human_turn` | real user messages (no interrupts, no boilerplate) per session, and tool calls over those turns; Anthropic's internal baseline moved 6.2 to 4.1 turns and 9.8 to 21.2 calls | B |
+| `edit_without_question_short_prompt` | sessions whose first prompt is under 300 chars, whose first edit answers that prompt (still the first human turn) with no `AskUserQuestion` and no assistant text with `?` before it, and where a correction followed within 5 messages | L |
+| `turns_above_200k`, `edits_above_200k` | assistant messages whose `input_tokens + cache_read_input_tokens` exceed 200k, and Edit/Write calls made in them; an inference about recall, not a validated threshold | I |
 | `recurring_tool_sequences` | 3 consecutive tool calls as argument-free tokens (`Bash:<prefix>`, `Skill:<name>`, `Agent:<type>`, else the tool name) seen in 3+ sessions; `{sequence: "A > B > C", sessions}`, top 15; a triple of one repeated tool is skipped | B |
 
-Also in the population summary: `write_edit_ratio` (Write calls per Edit call),
+Also in the interactive summary: `sessions_with_subagents`, `subagent_token_share_median`, `_p90` and
+`sessions_subagent_share_over_1` (subagent fresh tokens over the parent session's fresh tokens, linked
+through the `<session-id>/subagents/` path). In every population summary: `write_edit_ratio` (Write calls per Edit call; descriptive, no published baseline),
 `ask_interrupt_ratio` (AskUserQuestion calls per interrupt) and `repeated_prompts` (exact
 prompt clusters, same object shape as `patterns.near_duplicate_prompts` plus `len`).
+
+## Git-backed quality scripts (brief G)
+
+| Script | Prints | Source |
+|---|---|---|
+| `git_change_size.py --repos a,b --since YYYY-MM-DD` | one JSON row per repo: `commits`, `lines_p50`, `lines_p90`, `share_under_85`, `share_over_209`, `flag`; binary rows and lockfiles skipped, merges skipped | `git log --numstat --no-merges` |
+| `edit_survival.py --session <transcript> --repo <path> [--days 7]` | `files`, `files_without_commit`, `lines_added`, `lines_surviving`, `survival`: added lines (`new_string` minus `old_string`, or a Write's `content`, lines of 8+ chars) present at the first commit touching the file within `--days` after the edit | transcript `tool_use.input` plus `git log -- <path>` and `git show` |
+
+## Instruction layer (briefs F and L)
+
+`instruction_layer.py [--home ~] [--project <repo>]` prints JSON: `global` rows (`file`, `tokens`,
+`instructions`, `emphasis`, `names_test_command`) for `~/.claude/CLAUDE.md`, its `@imports` and
+`~/.claude/rules/*.md` in load order; `totals` with `flag` set over 100 instructions; `project`
+rows for `CLAUDE.md`, `AGENTS.md`, `.claude/rules/*.md` and their imports, with
+`names_test_command`. An instruction line is a bullet, a numbered step or a line opening with an
+imperative; emphasis is `IMPORTANT`, a word of 5+ capitals, or a think-hard/keep-going phrase.
+Counts and paths only.
 
 ## Prompt clusters and sample prompts
 

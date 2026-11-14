@@ -11,10 +11,16 @@ Measurement artefacts
 - A one-shot plugin session (security review per change) can look like interactive
   work. Separate it by its identical first prompt.
 - Pattern counters are hints, not findings. `done_without_verify` matches prose about
-  tests, not only claims; `repeated_bash` in subagents is mostly legitimate re-runs after
+  tests, not only claims; `repeated_tool_calls` in subagents is mostly legitimate re-runs after
   an edit; `tool_wait` on AskUserQuestion, Agent and Workflow is the user or the agent
   working, not permission wait; `reverts` in subagents include worktree setup. Read
   samples before turning a count into an item.
+- Revert rate as a quality signal: agent commits are reverted at 1.1% against 1.6% for
+  human ones. `reverts` is descriptive; quality lives in survival and change size.
+- Idle gaps are review or absence, not "think time"; the median gap across sessions is
+  about 25 min, so a 30-min cut drops half the data. Report the distribution.
+- `/loop`, a ralph loop or an "always continue" rule as the fix for nudge prompts: an
+  unattended loop without a runnable check over-persists. `/goal <check>` or a Stop hook.
 - A skill induced from repeated prompts must not carry a value from any sample: no path,
   branch, PR number, host or token. Replace them with `$ARGUMENTS` or a placeholder and
   state the rule in the skill body.
@@ -65,3 +71,14 @@ Process traps
   it cannot be done in either order. Put the prerequisite first (secrets file before the
   rotation, with the current values), then rotate into it. `plan_render.py` prints a
   `WARNING:` for each such pair.
+- A manual `claude mcp add` step with `-e` before the server name fails with "missing
+  required argument 'name'": `-e <env...>` is variadic and swallows the name. Write the
+  name first, every `-e` after it, `--` before the command. Check every CLI in a manual
+  step against its `--help` output from this run, not from memory.
+- "Rotate the key at <vendor>.dev" is wrong when the URL key beside it points at the
+  user's own host (FIRECRAWL_URL -> firecrawl.bicatalyst.ch). Resolve the host of every
+  `*_URL` key before naming where a key is rotated; self-hosted means the deployment config.
+- Rotation before removing the literals breaks the service: Claude Code writes
+  `settings.json` `env` into its own environment and `.zshrc` exports run after a sourced
+  secrets file, so the old literal wins over the rotated value. Order: secrets file and
+  `${VAR}` wiring, then delete the literals, then rotate one key at a time.

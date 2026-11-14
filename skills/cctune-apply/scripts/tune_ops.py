@@ -9,7 +9,7 @@ import os
 import ops_file
 import ops_json
 from ops_base import (ALLOWED_USER_ROOTS, OpResult, ReadError, SYSTEM_PREFIXES,  # noqa: F401 re-exported
-                      check_path, expand, read_text, target_kind)
+                      check_path, check_read_path, expand, read_text, target_kind)
 from plan_schema import OP_KINDS, PlanError
 
 

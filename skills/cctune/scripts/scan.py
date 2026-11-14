@@ -86,6 +86,16 @@ def population_summary(p):
     }
 
 
+def subagent_share(main_pop, sub_pop):
+    """Subagent fresh tokens over main-thread fresh tokens, per interactive session that launched any."""
+    by_parent = collections.Counter()
+    for name, fresh in sub_pop.session_fresh.items():
+        by_parent[name.split("/", 1)[0]] += fresh
+    shares = [round(by_parent[s[:-6]] / fresh, 3) for s, fresh in main_pop.session_fresh.items() if s[:-6] in by_parent and fresh]
+    return {"sessions_with_subagents": len(shares), "subagent_token_share_median": pct(shares, 0.5),
+            "subagent_token_share_p90": pct(shares, 0.9), "sessions_subagent_share_over_1": sum(x > 1 for x in shares)}
+
+
 def cluster_brief(rows):
     return [(r["hash"], r["sessions"], r["occurrences"]) for r in rows[:5]]
 
@@ -105,13 +115,19 @@ def print_summary(out):
         print(f"   repeated_prompts(hash,sessions,occ)={cluster_brief(d['repeated_prompts'])}")
         pt = d["patterns"]
         print(f"   patterns: reverts={pt['reverts'][:4]} dangerous={pt['dangerous_forms'][:4]} cred_reads={pt['credential_reads']} "
-              f"premature={pt['premature_sessions']} churn={pt['churn_files_over_5_edits']} repeat_bash={pt['repeated_bash']}")
+              f"premature={pt['premature_sessions']} (corrected={pt['premature_corrected_sessions']}) churn={pt['churn_files_over_5_edits']} repeated_calls={pt['repeated_tool_calls'][:3]}")
+        print(f"   patterns: search_loops={pt['search_loops_3plus']} failed_edit_streaks={pt['failed_edit_streaks']} "
+              f"error_rate={dict(list(pt['tool_error_rate'].items())[:4])} fix_sessions={pt['fix_sessions']} "
+              f"test_edits_in_fix={pt['test_file_edits_in_fix_sessions']}")
         print(f"   patterns: dup_reads={pt['duplicate_reads']} ({pt['duplicate_read_chars'] // 1000}k chars) oversized={pt['oversized_results_over_20k'][:4]} "
               f"nudges={pt['nudge_prompts']} near_dup(hash,sessions,occ)={cluster_brief(pt['near_duplicate_prompts'])}")
         print(f"   patterns: done_claims={pt['done_claims']} unverified={pt['done_without_verify']} interrupt_before={pt['interrupt_before_tool'][:4]} "
               f"orphan_agents={pt['orphaned_agents']} cache_miss_med={pt['cache_miss_ratio_median']}")
         print(f"   patterns: tool_wait(total_s,n,mean)={dict(list(pt['tool_wait_seconds_total_n_mean'].items())[:6])}")
         print(f"   patterns: sequences={[(r['sequence'], r['sessions']) for r in pt['recurring_tool_sequences'][:4]]}")
+        print(f"   turns: human_med={pt['human_turns_per_session_median']} tools_per_turn={pt['tool_calls_per_human_turn']} "
+              f"short_prompt_edits_corrected={pt['edit_without_question_short_prompt']} turns>200k={pt['turns_above_200k']} "
+              f"edits>200k={pt['edits_above_200k']} subagent_share_med={d.get('subagent_token_share_median', '-')}")
         print(f"   coverage: skills_available={d['skills_available']} used_distinct={d['skills_used_distinct']} "
               f"missed_top={[(m['skill'], m['sessions']) for m in d['missed_skill_sessions'][:5]]} "
               f"mcp_unused={d['mcp_servers_unused'][:8]}")
@@ -151,6 +167,7 @@ def main():
     out = {"days": a.days, "files": len(files), "skipped_over_max_mb": skipped,
            "subagent_types_from_meta": agent_types_from_meta(want, cutoff)}
     out.update({name: population_summary(p) for name, p in pops.items()})
+    out["interactive"].update(subagent_share(pops["interactive"], pops["subagent"]))
     if a.out:
         os.makedirs(os.path.dirname(os.path.abspath(a.out)) or ".", mode=0o700, exist_ok=True)
         scan_lib.write_summary(out, a.out)

@@ -150,3 +150,52 @@ def test_check_path_refuses_tune_dir(tmp_home):
     for rel in ("tune/backups/x/00_settings.json", "tune/plans/latest.json"):
         with pytest.raises(PlanError):
             tune_ops.check_path(str(tmp_home / ".claude" / rel))
+
+
+def test_check_read_path_allows_startup_file_in_home(tmp_home):
+    rc = tmp_home / ".zshrc"
+    rc.write_text("x\n")
+    assert tune_ops.check_read_path(str(rc)) == str(rc)
+
+
+def test_check_read_path_refuses_system_and_credential_paths(tmp_home):
+    with pytest.raises(PlanError):
+        tune_ops.check_read_path("/etc/passwd")
+    with pytest.raises(PlanError):
+        tune_ops.check_read_path(str(tmp_home / ".ssh" / "id_rsa"))
+
+
+def test_check_read_path_refuses_startup_file_symlinked_into_ssh(tmp_home):
+    (tmp_home / ".ssh").mkdir()
+    (tmp_home / ".ssh" / "id_rsa").write_text("k\n")
+    os.symlink(str(tmp_home / ".ssh" / "id_rsa"), str(tmp_home / ".zshrc"))
+    with pytest.raises(PlanError):
+        tune_ops.check_read_path(str(tmp_home / ".zshrc"))
+
+
+def test_check_read_path_refuses_other_files_under_home(tmp_home):
+    for rel in (".netrc", ".git-credentials", "notes.txt", ".config/gh/hosts.yml"):
+        p = tmp_home / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text("x\n")
+        with pytest.raises(PlanError):
+            tune_ops.check_read_path(str(p))
+
+
+def test_check_read_path_allows_claude_json_and_write_roots(tmp_home):
+    cj = tmp_home / ".claude.json"
+    cj.write_text("{}\n")
+    assert tune_ops.check_read_path(str(cj)) == str(cj)
+    assert tune_ops.check_read_path(str(tmp_home / ".config" / "claude" / "secrets.env")).endswith("secrets.env")
+
+
+@pytest.mark.parametrize("rel", [".claude/TUNE/plan.json", ".claude/Tune/backups/x"])
+def test_check_path_refuses_tune_dir_in_any_case(tmp_home, rel):
+    """On a case-insensitive file system ~/.claude/TUNE is ~/.claude/tune; refuse it everywhere."""
+    with pytest.raises(PlanError):
+        tune_ops.check_path(str(tmp_home / rel))
+
+
+def test_check_read_path_refuses_credential_dir_in_any_case(tmp_home):
+    with pytest.raises(PlanError):
+        tune_ops.check_read_path(str(tmp_home / ".config" / "claude" / ".." / ".." / ".SSH" / "id_rsa"))

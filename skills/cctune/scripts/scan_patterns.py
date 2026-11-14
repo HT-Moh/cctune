@@ -9,42 +9,26 @@ import hashlib
 import re
 
 import scan_commands
+import scan_quality
 import scan_sequences
+import scan_turns
+from scan_prompts import PromptCluster, cluster_rows, is_nudge, near_key  # noqa: F401  (re-exported)
 
 EDIT_TOOLS = ("Edit", "Write", "MultiEdit", "NotebookEdit")
 LOOK_TOOLS = ("Read", "Grep", "Glob", "Bash", "Agent", "Skill", "WebFetch", "WebSearch")
 CHURN_EDITS = 5
 OVERSIZED_CHARS = 20000
 INTERRUPT = "[Request interrupted by user"
+CORRECTION_RE = re.compile(r"^\W*(no\b|not\b|stop\b|wrong\b|don'?t\b|do not\b|undo\b|revert\b|i meant\b|instead\b)", re.I)
+CORRECTION_WINDOW = 5
 CREDENTIAL_PATH_RE = re.compile(r"(^|/)(\.env(\.[^/]*)?|id_(rsa|dsa|ecdsa|ed25519)|credentials(\.json)?|\.netrc|[^/]*\.(pem|key|p12|pfx))$")
 CREDENTIAL_EXAMPLE_RE = re.compile(r"\.(example|sample|template|dist)$")
-NUDGES = frozenset({"proceed", "continue", "yes", "y", "ok", "okay", "go", "go on", "go ahead", "next", "do it",
-                    "continue please", "proceed please", "yes proceed", "ok proceed"})
-TEST_RE = re.compile(r"\b(pytest|jest|vitest|mocha|cargo test|go test|make (test|check)|(npm|pnpm|yarn|bun) (run )?test|"
-                     r"tox|unittest|rspec|phpunit|ruff|mypy|tsc|eslint|golangci-lint)\b")
+TEST_RE = scan_quality.TEST_RE
 DONE_RE = re.compile(r"\b(tests? (now )?(pass|passing|green)|all green|suite (is )?green|implementation complete|"
                      r"done and (verified|tested)|verified (locally|in|with|by))\b", re.I)
-NEAR_NUMBER_RE = re.compile(r"\d+")
-NEAR_PATH_RE = re.compile(r"\S*/\S*")
-NEAR_QUOTE_RE = re.compile(r"(\"[^\"]*\"|'[^']*'|`[^`]*`)")
-NEAR_PUNCT_RE = re.compile(r"[^\w\s<>]")
-
-
-def near_key(text):
-    """Hash of the prompt with numbers, paths and quoted spans replaced; groups near-duplicates."""
-    s = NEAR_QUOTE_RE.sub("<q>", text.lower())
-    s = NEAR_PATH_RE.sub("<path>", s)
-    s = NEAR_NUMBER_RE.sub("0", s)
-    s = " ".join(NEAR_PUNCT_RE.sub(" ", s).split())
-    return hashlib.sha256(s.encode("utf-8")).hexdigest()[:12]
-
 
 def path_key(path):
     return hashlib.sha256(str(path).encode("utf-8")).hexdigest()[:12]
-
-
-def is_nudge(text):
-    return " ".join(NEAR_PUNCT_RE.sub(" ", text.lower()).split()) in NUDGES
 
 
 def is_credential_path(path):
@@ -53,11 +37,11 @@ def is_credential_path(path):
 
 
 def revert_form(words):
-    """`git checkout --`, `git reset`, `git revert`, `git stash`, `git restore`, or ''."""
+    """`git revert`, or `git reset` without `--hard` (that one is a dangerous form), else ''."""
     p = scan_commands.prefix_of_words(words)
-    if p == "git checkout":
-        return "git checkout --" if "--" in words else ""
-    return p if p in ("git reset", "git revert", "git stash", "git restore") else ""
+    if p == "git reset":
+        return "" if "--hard" in words else p
+    return p if p == "git revert" else ""
 
 
 def dangerous_forms(words):
@@ -78,37 +62,6 @@ def dangerous_forms(words):
     return out
 
 
-CLUSTER_MIN_SESSIONS = 3
-CLUSTER_MIN_OCCURRENCES = 5
-CLUSTER_FILES_KEPT = 5
-CLUSTER_ROWS_KEPT = 15
-
-
-class PromptCluster:
-    """Every message that hashes to one key: how many, in how many sessions, and where to look."""
-
-    def __init__(self):
-        self.sessions = set()
-        self.occurrences = 0
-        self.files = []
-
-    def add(self, session_name):
-        self.occurrences += 1
-        if session_name not in self.sessions and len(self.files) < CLUSTER_FILES_KEPT:
-            self.files.append(session_name)
-        self.sessions.add(session_name)
-
-    def is_recurring(self):
-        return len(self.sessions) >= CLUSTER_MIN_SESSIONS or self.occurrences >= CLUSTER_MIN_OCCURRENCES
-
-
-def cluster_rows(clusters):
-    """JSON-ready rows for the recurring clusters, most occurrences first, top 15."""
-    kept = sorted(((c.occurrences, k) for k, c in clusters.items() if c.is_recurring()), reverse=True)
-    return [{"hash": k, "sessions": len(clusters[k].sessions), "occurrences": n, "files": list(clusters[k].files)}
-            for n, k in kept[:CLUSTER_ROWS_KEPT]]
-
-
 class Patterns:
     """Per-population counters; every value is a count, a ratio or a hash."""
 
@@ -117,8 +70,10 @@ class Patterns:
         self.dangerous = collections.Counter()
         self.credential_reads = 0
         self.premature_sessions = 0
+        self.premature_corrected = 0
         self.churn_files = 0
-        self.repeated_bash = 0
+        self.quality = scan_quality.Quality()
+        self.turns = scan_turns.Turns()
         self.duplicate_reads = 0
         self.duplicate_read_chars = 0
         self.oversized_results = collections.Counter()
@@ -142,8 +97,11 @@ class Session:
         self.pending = {}
         self.first_seen = False
         self.first_tool = None
+        self.after_edit_msgs = None
+        self.corrected = False
         self.last_tool = None
-        self.last_bash = None
+        self.quality = scan_quality.SessionQuality()
+        self.turns = scan_turns.SessionTurns()
         self.edits = collections.Counter()
         self.reads = collections.Counter()
         self.verified = False
@@ -154,23 +112,37 @@ class Session:
 
 
 def on_user_text(text, sess, pat):
+    _note_correction(text, sess)
     if INTERRUPT in text:
         pat.interrupt_before[sess.last_tool or "(none)"] += 1
         return
     sess.verified = False
+    scan_quality.on_prompt(text, sess.quality)
+    scan_turns.on_prompt(text, sess.turns)
     if is_nudge(text):
         pat.nudges += 1
     pat.near_prompts[near_key(text)].add(sess.name)
 
 
+def _note_correction(text, sess):
+    """A correction is an interrupt or a negating opener within 5 messages of the first edit."""
+    if sess.after_edit_msgs is None or sess.after_edit_msgs >= CORRECTION_WINDOW:
+        return
+    sess.after_edit_msgs += 1
+    if INTERRUPT in text or CORRECTION_RE.match(text):
+        sess.corrected = True
+
+
 def on_assistant_text(text, sess, pat):
+    scan_turns.on_assistant_text(text, sess.turns)
     if DONE_RE.search(text):
         pat.done_claims += 1
         if not sess.verified:
             pat.done_without_verify += 1
 
 
-def on_usage(usage, sess):
+def on_usage(usage, sess, pat):
+    scan_turns.on_usage(usage, sess.turns, pat.turns)
     sess.cache_creation += usage.get("cache_creation_input_tokens", 0)
     sess.cache_read += usage.get("cache_read_input_tokens", 0)
 
@@ -181,10 +153,14 @@ def on_tool_use(block, sess, pat):
     if sess.first_tool is None:
         sess.first_tool = name
     sess.last_tool = name
+    scan_quality.on_tool_use(name, inp, sess.quality, pat.quality)
+    scan_turns.on_tool_use(name, sess.turns, pat.turns)
     scan_sequences.record(scan_sequences.token_of(name, inp), sess.recent_tools, sess.name, pat.sequences)
     if name == "Agent":
         sess.agents.add(block.get("id"))
     if name in EDIT_TOOLS:
+        if sess.after_edit_msgs is None:
+            sess.after_edit_msgs = 0
         sess.edits[path_key(inp.get("file_path") or inp.get("notebook_path") or "")] += 1
     if name == "Read" and is_credential_path(inp.get("file_path", "")):
         pat.credential_reads += 1
@@ -193,10 +169,6 @@ def on_tool_use(block, sess, pat):
 
 
 def _on_bash(cmd, sess, pat):
-    digest = hashlib.sha256(" ".join(cmd.split()).encode("utf-8")).hexdigest()
-    if digest == sess.last_bash:
-        pat.repeated_bash += 1
-    sess.last_bash = digest
     if TEST_RE.search(cmd):
         sess.verified = True
     for words in scan_commands.segments(cmd) or []:
@@ -220,6 +192,7 @@ def on_tool_result(block, call, sess, pat, elapsed):
     """`call` is (name, input) recorded at tool_use time; `elapsed` is None without timestamps."""
     name, inp = call
     sess.agents.discard(block.get("tool_use_id"))
+    scan_quality.on_tool_result(name, inp, bool(block.get("is_error")), sess.quality, pat.quality)
     chars = result_chars(block.get("content"))
     if chars > OVERSIZED_CHARS:
         pat.oversized_results[name] += 1
@@ -237,8 +210,11 @@ def on_tool_result(block, call, sess, pat, elapsed):
 def finish_session(sess, pat):
     if sess.first_tool in EDIT_TOOLS:
         pat.premature_sessions += 1
+        pat.premature_corrected += int(sess.corrected)
     pat.churn_files += sum(1 for n in sess.edits.values() if n > CHURN_EDITS)
     pat.orphaned_agents += len(sess.agents)
+    scan_quality.finish_session(sess.quality, pat.quality)
+    scan_turns.finish_session(sess.turns, sess.corrected, pat.turns)
     total = sess.cache_creation + sess.cache_read
     if total:
         pat.cache_miss_ratio.append(round(sess.cache_creation / total, 3))
@@ -259,7 +235,8 @@ def summary(pat, n_sessions):
         "reverts": pat.reverts.most_common(), "dangerous_forms": pat.dangerous.most_common(),
         "credential_reads": pat.credential_reads,
         "premature_sessions": pat.premature_sessions, "premature_share": round(pat.premature_sessions / n_sessions, 3) if n_sessions else 0,
-        "churn_files_over_5_edits": pat.churn_files, "repeated_bash": pat.repeated_bash,
+        "premature_corrected_sessions": pat.premature_corrected,
+        "churn_files_over_5_edits": pat.churn_files,
         "duplicate_reads": pat.duplicate_reads, "duplicate_read_chars": pat.duplicate_read_chars,
         "oversized_results_over_20k": pat.oversized_results.most_common(),
         "tool_wait_seconds_total_n_mean": waits,
@@ -268,4 +245,6 @@ def summary(pat, n_sessions):
         "interrupt_before_tool": pat.interrupt_before.most_common(10), "orphaned_agents": pat.orphaned_agents,
         "cache_miss_ratio_median": _pct(pat.cache_miss_ratio, 0.5), "cache_miss_ratio_p90": _pct(pat.cache_miss_ratio, 0.9),
         "recurring_tool_sequences": scan_sequences.rows(pat.sequences),
+        **scan_quality.summary(pat.quality),
+        **scan_turns.summary(pat.turns),
     }

@@ -47,10 +47,28 @@ def bash(uid, cmd, seconds=0):
     return tool_use(uid, "Bash", {"command": cmd}, seconds)
 
 
-def test_revert_forms_counted_by_prefix(tmp_path):
+def test_reverts_count_only_git_revert_and_soft_reset(tmp_path):
     pop = scan(tmp_path, [bash("a", "git checkout -- src/x.py"), bash("b", "git checkout main"),
-                          bash("c", "git reset --hard HEAD~1"), bash("d", "git stash"), bash("e", "git restore x")])
-    assert pop.patterns.reverts == {"git checkout --": 1, "git reset": 1, "git stash": 1, "git restore": 1}
+                          bash("c", "git reset --hard HEAD~1"), bash("d", "git stash"), bash("e", "git restore x"),
+                          bash("f", "git revert abc123"), bash("g", "git reset HEAD~1")])
+    assert pop.patterns.reverts == {"git revert": 1, "git reset": 1}
+    assert pop.patterns.dangerous == {"git reset --hard": 1}
+
+
+def _scan_into(pop, tmp_path, events, name):
+    f = tmp_path / name
+    f.write_text("\n".join(json.dumps(e) for e in events) + "\n")
+    scan_lib.scan_file(str(f), lambda e, p: pop, 10 ** 9, cutoff=0)
+
+
+def test_premature_session_corrected_within_five_messages(tmp_path):
+    opener = [user_text("fix it"), tool_use("a", "Edit", {"file_path": "/r/x.py"})]
+    pop = scan(tmp_path, opener + [user_text("no, wrong file", 2)], "a.jsonl")
+    _scan_into(pop, tmp_path, opener + [user_text("now add tests", 2)], "b.jsonl")
+    _scan_into(pop, tmp_path, opener + [user_text(f"step {i}", i) for i in range(5)] + [user_text("no, undo that", 9)], "c.jsonl")
+    _scan_into(pop, tmp_path, opener + [user_text("[Request interrupted by user]", 2)], "d.jsonl")
+    assert pop.patterns.premature_sessions == 4 and pop.patterns.premature_corrected == 2
+    assert scan_patterns.summary(pop.patterns, 4)["premature_corrected_sessions"] == 2
 
 
 def test_dangerous_forms_counted(tmp_path):
@@ -79,11 +97,6 @@ def test_file_churn_counts_paths_edited_over_five_times(tmp_path):
     edits = [tool_use(f"e{i}", "Edit", {"file_path": "/r/x.py"}) for i in range(6)]
     pop = scan(tmp_path, edits + [tool_use("w", "Write", {"file_path": "/r/y.py"})])
     assert pop.patterns.churn_files == 1
-
-
-def test_repeated_bash_counts_identical_consecutive_commands(tmp_path):
-    pop = scan(tmp_path, [bash("a", "pytest -q"), bash("b", "pytest -q"), bash("c", "ls"), bash("d", "pytest -q")])
-    assert pop.patterns.repeated_bash == 1
 
 
 def test_duplicate_reads_and_oversized_results(tmp_path):
@@ -184,3 +197,43 @@ def test_near_duplicate_cluster_from_five_occurrences_in_one_session(tmp_path):
     pop = scan(tmp_path, [user_text(f"merge PR {n}") for n in range(5)])
     rows = scan_patterns.summary(pop.patterns, len(pop.sessions))["near_duplicate_prompts"]
     assert [(r["sessions"], r["occurrences"]) for r in rows] == [(1, 5)]
+
+
+def test_human_turns_and_tool_calls_per_turn(tmp_path):
+    pop = scan(tmp_path, [user_text("do a", 0), bash("a", "ls", 1), bash("b", "ls -a", 2),
+                          user_text("[Request interrupted by user]", 3), user_text("do b", 4), bash("c", "pwd", 5)], "a.jsonl")
+    _scan_into(pop, tmp_path, [user_text("do c", 0)] + [bash(f"x{i}", f"ls {i}", i + 1) for i in range(5)], "b.jsonl")
+    s = scan_patterns.summary(pop.patterns, 2)
+    assert s["human_turns_per_session_median"] == 2 and s["human_turns_per_session_p90"] == 2
+    assert s["tool_calls_per_human_turn"] == round(8 / 3, 1)
+
+
+def test_edit_without_question_after_short_prompt_then_corrected(tmp_path):
+    edit = tool_use("e", "Edit", {"file_path": "/r/x.py"}, 1)
+    pop = scan(tmp_path, [user_text("fix login", 0), edit, user_text("no, the other login", 2)], "a.jsonl")
+    _scan_into(pop, tmp_path, [user_text("fix login", 0), tool_use("q", "AskUserQuestion", {"questions": []}, 1),
+                               edit, user_text("no, the other login", 3)], "b.jsonl")
+    _scan_into(pop, tmp_path, [user_text("fix login", 0), assistant_text("Which login: web or cli?", 1), edit,
+                               user_text("no, the other login", 3)], "c.jsonl")
+    _scan_into(pop, tmp_path, [user_text("fix login in /r/x.py: " + "detail " * 60, 0), edit, user_text("no", 2)], "d.jsonl")
+    _scan_into(pop, tmp_path, [user_text("fix login", 0), edit, user_text("thanks, next", 2)], "e.jsonl")
+    assert scan_patterns.summary(pop.patterns, 5)["edit_without_question_short_prompt"] == 1
+
+
+def test_turns_and_edits_above_200k_context(tmp_path):
+    big = {"input_tokens": 1000, "cache_read_input_tokens": 200000, "cache_creation_input_tokens": 0, "output_tokens": 5}
+    small = {"input_tokens": 1000, "cache_read_input_tokens": 50000, "cache_creation_input_tokens": 0, "output_tokens": 5}
+    pop = scan(tmp_path, [tool_use("a", "Edit", {"file_path": "/r/x"}, 0, "m1", big),
+                          tool_use("b", "Read", {"file_path": "/r/y"}, 1, "m2", big),
+                          tool_use("c", "Edit", {"file_path": "/r/z"}, 2, "m3", small)])
+    s = scan_patterns.summary(pop.patterns, 1)
+    assert s["turns_above_200k"] == 2 and s["edits_above_200k"] == 1
+
+
+def test_short_prompt_edit_counts_only_when_the_edit_answers_the_first_prompt(tmp_path):
+    edit = tool_use("e", "Edit", {"file_path": "/r/x.py"}, 3)
+    pop = scan(tmp_path, [user_text("fix login", 0), assistant_text("Which login, web or cli?", 1), user_text("web", 2),
+                          edit, user_text("no, the other one", 4)], "a.jsonl")
+    _scan_into(pop, tmp_path, [user_text("fix login", 0), assistant_text("Looking.", 1), user_text("hurry", 2),
+                               edit, user_text("no, the other one", 4)], "b.jsonl")
+    assert scan_patterns.summary(pop.patterns, 2)["edit_without_question_short_prompt"] == 0

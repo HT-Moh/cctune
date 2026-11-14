@@ -221,7 +221,20 @@ def _validate_check(check, tag: str) -> list[str]:
         errs += _validate_cmd_exit(check, tag)
         if check.get("phase") != "deferred":
             errs.append(f"{tag}: cmd_exit is display-only and allowed in phase deferred only")
+    if check.get("kind") == "file_mode" and parse_file_mode(check.get("mode")) is None:
+        errs.append(f"{tag}: file_mode needs an octal mode such as \"600\" or 384")
     return errs
+
+
+def parse_file_mode(value):
+    """A permission mode as an int, from an int or an octal string ("600", "0600"); None when invalid."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value if 0 <= value <= 0o777 else None
+    if isinstance(value, str) and re.fullmatch(r"0?[0-7]{3}", value):
+        return int(value, 8)
+    return None
 
 
 def cmd_form_error(argv) -> str:

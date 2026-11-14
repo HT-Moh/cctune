@@ -94,6 +94,7 @@ class Pop:
         self.secret_hits = 0
         self.malformed = 0
         self.prompts = collections.defaultdict(scan_patterns.PromptCluster)
+        self.session_fresh = collections.Counter()
         self.msg_ids = set()
         self.patterns = scan_patterns.Patterns()
         self.coverage = scan_coverage.Coverage(inventory)
@@ -168,10 +169,12 @@ def record_assistant(ev, pop, sess, when):
     mid = msg.get("id")
     if usage and (mid is None or mid not in pop.msg_ids):
         pop.msg_ids.add(mid)
-        pop.fresh += usage.get("input_tokens", 0) + usage.get("cache_creation_input_tokens", 0) + usage.get("output_tokens", 0)
+        fresh = usage.get("input_tokens", 0) + usage.get("cache_creation_input_tokens", 0) + usage.get("output_tokens", 0)
+        pop.fresh += fresh
+        pop.session_fresh[sess.name] += fresh
         pop.cache_read += usage.get("cache_read_input_tokens", 0)
         pop.by_model[msg.get("model", "?")] += 1
-        scan_patterns.on_usage(usage, sess)
+        scan_patterns.on_usage(usage, sess, pop.patterns)
         if not sess.first_seen:
             sess.first_seen = True
             pop.first_req.append(usage.get("input_tokens", 0) + usage.get("cache_creation_input_tokens", 0) + usage.get("cache_read_input_tokens", 0))

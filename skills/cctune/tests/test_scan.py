@@ -166,3 +166,26 @@ def test_print_summary_accepts_cluster_objects(tmp_path, capsys):
     scan.print_summary({"interactive": summary, "headless": summary, "subagent": summary,
                         "subagent_types_from_meta": [], "files": 1, "skipped_over_max_mb": 0})
     assert "repeated_prompts(hash,sessions,occ)=" in capsys.readouterr().out
+
+
+def _usage_event(fresh, msg_id):
+    return json.dumps({"type": "assistant", "timestamp": "2099-01-01T00:00:00Z", "message": {
+        "id": msg_id, "model": "x", "usage": {"input_tokens": fresh, "cache_creation_input_tokens": 0,
+                                                  "cache_read_input_tokens": 0, "output_tokens": 0}, "content": []}})
+
+
+def test_subagent_token_share_links_subagent_files_to_their_parent(tmp_path):
+    import scan
+    main_pop, sub_pop = scan_lib.Pop(), scan_lib.Pop()
+    layout = {"p/aaa.jsonl": (main_pop, 100), "p/aaa/subagents/agent-1.jsonl": (sub_pop, 150),
+              "p/aaa/subagents/agent-2.jsonl": (sub_pop, 50), "p/bbb.jsonl": (main_pop, 400),
+              "p/bbb/subagents/agent-3.jsonl": (sub_pop, 100), "p/ccc.jsonl": (main_pop, 10),
+              "p/ddd.jsonl": (main_pop, 100), "p/ddd/subagents/agent-4.jsonl": (sub_pop, 50)}
+    for rel, (pop, fresh) in layout.items():
+        f = tmp_path / rel
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(_usage_event(fresh, rel) + "\n")
+        scan_lib.scan_file(str(f), lambda e, p, pop=pop: pop, 10 ** 9, cutoff=0)
+    share = scan.subagent_share(main_pop, sub_pop)
+    assert share == {"sessions_with_subagents": 3, "subagent_token_share_median": 0.5,
+                     "subagent_token_share_p90": 2.0, "sessions_subagent_share_over_1": 1}

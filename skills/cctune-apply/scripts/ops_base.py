@@ -14,6 +14,7 @@ REFUSED_USER_PATHS = (".bashrc", ".zshrc", ".zprofile", ".profile", ".bash_profi
                       ".config/autostart", ".config/systemd", ".gnupg", ".aws", ".kube",
                       ".claude/tune")  # plans and backups are the engine's own files
 ALLOWED_USER_ROOTS = (".claude", ".agents", ".config/claude")
+CREDENTIAL_STORES = (".ssh", ".gnupg", ".aws", ".kube")  # never read, never written
 RC_BASENAMES = (".bashrc", ".zshrc", ".zprofile", ".zshenv", ".zlogin", ".zlogout", ".profile",
                 ".bash_profile", ".bash_login", ".bash_logout", ".bash_aliases")
 JSON_INDENT = 2
@@ -71,6 +72,11 @@ def _under(path, root):
     return path == root or path.startswith(root.rstrip("/") + "/")
 
 
+def _under_any_case(path, root):
+    """Refusals compare case-insensitively: on a case-insensitive file system ~/.SSH is ~/.ssh."""
+    return _under(path.casefold(), root.casefold())
+
+
 def _in_git_worktree(real):
     """True for a file inside a repository whose root is neither $HOME nor a dot-directory."""
     home = _home()
@@ -86,33 +92,54 @@ def _in_git_worktree(real):
 
 
 def check_path(path):
-    """Return the absolute (unresolved) path a plan may touch, or raise PlanError saying why not.
+    """Return the absolute (unresolved) path a plan may write, or raise PlanError saying why not.
 
     The link location and, when it resolves, the link target are both validated, so ops see
     the symlink itself and can refuse or remove it while nothing reaches a forbidden file.
     """
+    return _validate(path, _refuse_write_lexical, _validate_write_real)
+
+
+def check_read_path(path):
+    """Return the absolute path a check may read, or raise PlanError saying why not.
+
+    Reads cover the write roots plus two files checks must see: ~/.claude.json (an entry was
+    removed) and the shell startup files in $HOME (the secrets file is sourced). Nothing else:
+    a check result is a one-bit oracle, so it must not reach ~/.netrc or any other secret.
+    """
+    return _validate(path, _refuse_read_lexical, _validate_read_real)
+
+
+def _validate(path, refuse_lexical, validate_real):
     lexical = os.path.abspath(os.path.expanduser(path))
-    _refuse_lexical(lexical)
+    refuse_lexical(lexical)
     if os.path.islink(lexical):
-        _validate_real(os.path.join(os.path.realpath(os.path.dirname(lexical)), os.path.basename(lexical)))
+        validate_real(os.path.join(os.path.realpath(os.path.dirname(lexical)), os.path.basename(lexical)))
         if os.path.exists(lexical):
-            _validate_real(os.path.realpath(lexical))
+            validate_real(os.path.realpath(lexical))
     else:
-        _validate_real(os.path.realpath(lexical))
+        validate_real(os.path.realpath(lexical))
     return lexical
 
 
-def _refuse_lexical(path):
+def _refuse_write_lexical(path):
     """Refusals that hold for the path as written, before any symlink is resolved."""
+    home = _home()
+    _refuse_read_lexical(path)
+    if os.path.basename(path).casefold() in RC_BASENAMES:
+        raise PlanError(f"shell startup file refused: {path}")
+    if path.casefold() == os.path.join(home, ".claude.json").casefold():
+        raise PlanError("~/.claude.json is rewritten by running sessions; use `claude mcp add/remove` or edit with all sessions closed")
+    if any(_under_any_case(path, os.path.join(home, rel)) for rel in REFUSED_USER_PATHS):
+        raise PlanError(f"login-time or credential path refused: {path}")
+
+
+def _refuse_read_lexical(path):
     home = _home()
     if any(part.casefold() == ".git" for part in path.split("/")):
         raise PlanError(f"git metadata refused: {path}")
-    if os.path.basename(path) in RC_BASENAMES:
-        raise PlanError(f"shell startup file refused: {path}")
-    if path == os.path.join(home, ".claude.json"):
-        raise PlanError("~/.claude.json is rewritten by running sessions; use `claude mcp add/remove` or edit with all sessions closed")
-    if any(_under(path, os.path.join(home, rel)) for rel in REFUSED_USER_PATHS):
-        raise PlanError(f"login-time or credential path refused: {path}")
+    if any(_under_any_case(path, os.path.join(home, rel)) for rel in CREDENTIAL_STORES):
+        raise PlanError(f"credential path refused: {path}")
 
 
 def _startup_link_targets(home):
@@ -125,18 +152,40 @@ def _startup_link_targets(home):
     return targets
 
 
-def _validate_real(real):
-    _refuse_lexical(real)
+def _validate_write_real(real):
+    _refuse_write_lexical(real)
     home = _home()
     if real in _startup_link_targets(home):
         raise PlanError(f"shell startup file (via a $HOME symlink) refused: {real}")
     if any(_under(real, os.path.join(home, rel)) for rel in ALLOWED_USER_ROOTS):
         return
-    if any(_under(real, pre) for pre in SYSTEM_PREFIXES):
-        raise PlanError(f"system path refused: {real}")
+    _refuse_system(real)
     if _in_git_worktree(real):
         return
     raise PlanError(f"path outside ~/.claude, ~/.agents, ~/.config/claude or a git work tree: {real}")
+
+
+def _validate_read_real(real):
+    _refuse_read_lexical(real)
+    home = _home()
+    if any(_under(real, os.path.join(home, rel)) for rel in ALLOWED_USER_ROOTS):
+        return
+    if real == os.path.join(home, ".claude.json") or real in _home_startup_files(home):
+        return
+    _refuse_system(real)
+    if _in_git_worktree(real):
+        return
+    raise PlanError(f"path outside the read allowlist (~/.claude, ~/.agents, ~/.config/claude, "
+                    f"~/.claude.json, shell startup files, a git work tree): {real}")
+
+
+def _home_startup_files(home):
+    return {os.path.join(home, name) for name in RC_BASENAMES}
+
+
+def _refuse_system(real):
+    if any(_under(real, pre) for pre in SYSTEM_PREFIXES):
+        raise PlanError(f"system path refused: {real}")
 
 
 def target_kind(path):
