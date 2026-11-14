@@ -11,6 +11,22 @@ Launch these in parallel with the Agent tool. Every brief starts with the same h
 
 Then the angle. Paste `reference/schema.md` into each brief.
 
+## Focus
+
+`$focus` picks a subset. F and H run under every focus: F reads the instruction layer
+every other finding lands in, and H must see every run so a secret never slips past a
+narrower audit. J runs on every draft.
+
+| focus | briefs |
+| :- | :- |
+| cost | E, I, K, F, H |
+| speed | C, D, F, H |
+| quality | B, G, F, H |
+| security | D, H, F |
+| prompting | B, L, F, H |
+| automation | A, K, F, H |
+| empty | A–L, all eleven |
+
 ## A. Headless and pipeline runs
 Population `sdk-*` plus one-shot plugin sessions. Per run: fresh tokens median/p90,
 first-request size, model mix. Repeated first prompts and how many sessions each

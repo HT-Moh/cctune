@@ -5,7 +5,7 @@ file. Numbers carry units and their source. No metaphors.
 
 1. **Summary** (one paragraph): window, projects, sessions by population, the three
    biggest levers with numbers.
-2. **Findings by angle** (A–I): 3–8 bullets each, every bullet with count + path + method.
+2. **Findings by angle** (A–L): 3–8 bullets each, every bullet with count + path + method.
 3. **Five biggest levers**: a five-row table (id, title, impact with its number) taken from
    `plan.json`; the full ranked list is on the page and in `<plan>.md`, never pasted into the
    terminal. Phases: 0 security (rotate, relocate, scrub) · 1 global config ·

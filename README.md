@@ -28,10 +28,11 @@ Python 3.10+, `jq`, `curl`, and `gh` for the quality angle.
 ```
 /cctune                      # 30 days, your five busiest projects
 /cctune 14                   # 14 days
-/cctune 30 myapp,infra cost  # two projects, one focus (cost, speed, quality, security, prompting, automation)
+/cctune 30 project_a,project_b cost  # two projects, one focus (cost, speed, quality, security, prompting, automation)
+/cctune 30 "" prompting     # default projects, one focus; the focus is the third argument
 ```
 
-The run launches ten read-only agents plus an adversarial review and costs roughly 650k to 1M
+The run launches eleven read-only agents plus an adversarial review and costs roughly 650k to 1M
 tokens for a heavy user. You get a plan at `~/.claude/tune/plans/<date>-<id>.json`, a Markdown
 report and an HTML checklist page published as an Artifact. Plans are immutable proposals; what
 you applied, did or dismissed lives in `~/.claude/tune/ledger.jsonl`, keyed by the change itself,
