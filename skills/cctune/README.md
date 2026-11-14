@@ -27,6 +27,7 @@ propose a skill, a `$ARGUMENTS` skill or a CLAUDE.md line for each cluster.
 /cctune            # 30 days, the five busiest projects
 /cctune 14         # 14 days
 /cctune 30 valradar,mindmeld cost
+/cctune 30 "" prompting     # default projects, one focus (cost, speed, quality, security, prompting, automation)
 ```
 
 The run costs roughly 650k to 1M tokens for ten agents over 30 days of a heavy user.
