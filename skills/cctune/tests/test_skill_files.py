@@ -57,6 +57,17 @@ def test_skill_is_portable(name):
     assert all("~" not in rule for rule in bash_rules)
 
 
+PRIVATE_NAMES = ("valradar", "mindmeld", "bicatalyst")
+PUBLIC_TEXT = [p for p in ENGINEERING.parent.rglob("*") if p.suffix in (".md", ".json") and ".omc" not in p.parts and ".git" not in p.parts]
+
+
+@pytest.mark.parametrize("path", PUBLIC_TEXT, ids=lambda p: str(p.relative_to(ENGINEERING.parent)))
+def test_docs_name_no_private_project(path):
+    text = path.read_text(encoding="utf-8").lower()
+    hits = [n for n in PRIVATE_NAMES if n in text]
+    assert hits == [] or path.name == "test_skill_files.py", hits
+
+
 def test_apply_read_rule_is_plans_only():
     fm = frontmatter(SKILLS["cctune-apply"])
     reads = re.findall(r"Read\(([^)]*)\)", fm["allowed-tools"])

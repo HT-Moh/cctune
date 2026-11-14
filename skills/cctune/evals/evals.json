@@ -17,11 +17,11 @@
     },
     {
       "id": 2,
-      "prompt": "/cctune 30 valradar,mindmeld cost",
+      "prompt": "/cctune 30 project_a,project_b cost",
       "expected_output": "A plan focused on cost for the two named projects over 30 days, with only the cost-serving angles plus F and H run.",
       "files": [],
       "expectations": [
-        "scan.py is called with --days 30 and --projects valradar,mindmeld",
+        "scan.py is called with --days 30 and --projects project_a,project_b",
         "Only the briefs that serve the cost focus plus F and H are launched",
         "Interactive, headless and subagent populations are reported as separate numbers, never summed",
         "Every recommended setting is grepped in the fetched docs or marked UNVERIFIED"
