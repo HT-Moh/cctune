@@ -201,3 +201,33 @@ def test_set_page_rejects_non_artifact_url(two_item_plan):
     r = run("--set-page", "https://example.com/x")
     import ledger
     assert r.returncode == 1 and "page_url" in r.stdout and ledger.page_url() is None
+
+
+def test_dismiss_records_reason_and_hides_item_from_groups(two_item_plan):
+    pf, _ = two_item_plan
+    r = run("--dismiss", "P6-01", "--reason", "transcripts are pruned by cron already")
+    assert r.returncode == 0 and "P6-01 dismissed" in r.stdout
+    item = items_of(pf)["P6-01"]
+    assert item["status"] == "dismissed" and item["reason"] == "transcripts are pruned by cron already"
+    assert run("--dry-run", "safe").returncode == 1
+    assert "dismissed" in run("--list").stdout
+    r = run("--undone", "P6-01")
+    assert r.returncode == 0 and items_of(pf)["P6-01"]["status"] == "proposed"
+
+
+def test_dismiss_without_reason_exits_1(two_item_plan):
+    r = run("--dismiss", "P6-01")
+    assert r.returncode == 1 and "--reason" in r.stdout
+
+
+def test_history_lists_ledger_rows_across_plans(two_item_plan, plan_file):
+    run("--done", "P0-01")
+    other = mkplan(mkitem("P3-07", [{"kind": "manual", "text": "rotate it"}], risk="manual"))
+    other["generated"] = "2099-01-01T00:00:00"
+    plan_file(other, "later.json")
+    r = run("--history")
+    assert r.returncode == 0 and "P0-01" in r.stdout and "done" in r.stdout and "test.json" in r.stdout
+    assert items_of(two_item_plan[0])["P0-01"]["status"] == "done"
+    listed = run("--list").stdout
+    assert "P3-07" in listed and "P0-01  0" not in listed, "--list shows the newest plan only"
+    assert items_of(two_item_plan[0].parent / "later.json")["P3-07"]["status"] == "done", "same change, state carried over"

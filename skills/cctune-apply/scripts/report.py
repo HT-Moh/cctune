@@ -172,6 +172,16 @@ def page_lines(plan: dict, plan_path) -> str:
     return f"page: {url}\nhtml: {html_path}"
 
 
+def history_table(rows: list) -> str:
+    """Every fingerprint the ledger knows, last state first by run: what earlier plans already settled."""
+    if not rows:
+        return "ledger empty: nothing applied, done or dismissed yet"
+    lines = ["run                          id     status      title"]
+    for r in rows:
+        lines.append(f"{str(r.get('run', '?')):<28} {str(r.get('id', '?')):<6} {str(r.get('status', '?')):<11} {str(r.get('title', ''))[:60]}")
+    return redact("\n".join(lines))
+
+
 def list_table(plan: dict) -> str:
     lines = [f"plan: {plan.get('generated', '?')}  window={plan.get('window_days', '?')}d  items={len(plan['items'])}",
              "id     ph risk    status      blocked-by   title"]

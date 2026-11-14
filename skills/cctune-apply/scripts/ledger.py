@@ -14,7 +14,7 @@ from pathlib import Path
 
 from plan_fingerprint import fingerprint
 
-STATE_FIELDS = ("status", "error", "applied_at", "done_at", "files", "backup")
+STATE_FIELDS = ("status", "error", "reason", "applied_at", "done_at", "files", "backup")
 FILE_MODE = 0o600
 DIR_MODE = 0o700
 _warnings: list = []

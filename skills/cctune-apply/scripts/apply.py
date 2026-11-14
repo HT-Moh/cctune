@@ -5,7 +5,9 @@
   apply.py --dry-run SELECTION...          prints the diffs and a digest
   apply.py SELECTION... --expect DIGEST [--confirmed ID,ID]
   apply.py --explain ID
-  apply.py --done ID... | --undone ID...   record manual items the user did
+  apply.py --done ID... | --undone ID...   record manual items the user did (undone also reopens a dismissed item)
+  apply.py --dismiss ID... --reason TEXT   never propose this change again, with the reason the next audit reads
+  apply.py --history                       what earlier plans already applied, did or dismissed (the ledger)
   apply.py --rollback ID... [--force]
   apply.py --purge-backup ID
   apply.py --render | --migrate
@@ -48,6 +50,9 @@ def parse(argv):
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--done", nargs="+", metavar="ID")
     ap.add_argument("--undone", nargs="+", metavar="ID")
+    ap.add_argument("--dismiss", nargs="+", metavar="ID")
+    ap.add_argument("--reason", default="")
+    ap.add_argument("--history", action="store_true")
     ap.add_argument("--explain", metavar="ID")
     ap.add_argument("--purge-backup", metavar="ID")
     ap.add_argument("--render", action="store_true")
@@ -114,6 +119,12 @@ def cmd_undone(plan, plan_path, ids):
     say(f"{', '.join(ids)} back to proposed")
 
 
+def cmd_dismiss(plan, plan_path, ids, reason):
+    selection.mark_dismissed(plan, ids, reason)
+    plan_store.save_plan(plan, plan_path)
+    say(f"{', '.join(ids)} dismissed; the next audit skips this change. Undo with --undone")
+
+
 def cmd_purge(plan, plan_path, item_id):
     item = selection.by_id(plan).get(item_id)
     if item is None or item.get("status") != "applied":
@@ -150,6 +161,8 @@ def dispatch(a) -> None:
         return say(report.explain(item, plan))
     if a.page:
         return say(report.page_lines(plan, plan_path))
+    if a.history:
+        return say(report.history_table(ledger.history()))
     if a.set_page:
         cmd_set_page(plan, plan_path, a.set_page)
     elif a.rollback:
@@ -158,6 +171,8 @@ def dispatch(a) -> None:
         cmd_done(plan, plan_path, a.done)
     elif a.undone:
         cmd_undone(plan, plan_path, a.undone)
+    elif a.dismiss:
+        cmd_dismiss(plan, plan_path, a.dismiss, a.reason)
     elif a.purge_backup:
         cmd_purge(plan, plan_path, a.purge_backup)
     elif a.migrate:
