@@ -98,13 +98,14 @@ official docs (fetched) ──► 10 analysis agents + adversarial pass ──�
 
 Issues and pull requests are welcome. The bar:
 
-- `python3 -m pytest -q` green (384 tests) and `ruff check skills tests` clean. CI runs both on
+- `python3 -m pytest -q` green (441 tests) and `ruff check skills tests` clean. CI runs both on
   Python 3.10 and 3.12.
 - Files under 300 lines, functions under 30, one concern per commit.
 - A bug fix comes with the test that failed before it.
 - Nothing in the repo prints or stores a secret value. Key names and paths only.
 
-Good first contributions: a new structural pattern in `scan_patterns.py` with its test, a new op
+Good first contributions: a new structural pattern in `scan_patterns.py`, `scan_quality.py` or
+`scan_turns.py` with its test, a new op
 kind in `cctune-apply/scripts/ops_*.py`, a trap you hit added to `reference/traps.md`, or a run
 on your own setup with the findings that were wrong.
 
