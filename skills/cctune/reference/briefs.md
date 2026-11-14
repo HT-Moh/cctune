@@ -116,7 +116,15 @@ CLAUDE.md lesson ("when X, do not Y"), never a skill. Report cluster size (`sess
 
 ## G. Quality
 Read-only `gh run list --limit 200`, `gh pr list --state all --limit 100`,
-`git log --since`. CI failures on PR branches and their jobs; hotfixes;
+`git log --since`. Change size first:
+`python3 ${CLAUDE_SKILL_DIR}/scripts/git_change_size.py --repos <repo,...> --since <YYYY-MM-DD>`
+prints lines changed per commit (p50, p90, share under 85, share over 209) per repo; a p50
+over 209 lines is the one change-size finding with evidence behind it (review stops
+working), a share under 85 is the target. Then survival, the quality headline:
+`python3 ${CLAUDE_SKILL_DIR}/scripts/edit_survival.py --session <transcript> --repo <repo>`
+for the 10 interactive sessions with most edits prints the share of agent-added lines the
+next commit on each file still carries (baseline 44% in the one field study; counts only).
+Files without a later commit are reported apart, never as zero survival. CI failures on PR branches and their jobs; hotfixes;
 PRs with 2+ fix commits and the cause of each fix (reviewer finding, CI, user,
 self-correction, scope); which checks ran before "done" claims: the scan's `patterns.done_claims` and
 `patterns.done_without_verify` count assistant text that claims tests pass or work is

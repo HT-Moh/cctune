@@ -97,6 +97,13 @@ Also in the population summary: `write_edit_ratio` (Write calls per Edit call; d
 `ask_interrupt_ratio` (AskUserQuestion calls per interrupt) and `repeated_prompts` (exact
 prompt clusters, same object shape as `patterns.near_duplicate_prompts` plus `len`).
 
+## Git-backed quality scripts (brief G)
+
+| Script | Prints | Source |
+|---|---|---|
+| `git_change_size.py --repos a,b --since YYYY-MM-DD` | one JSON row per repo: `commits`, `lines_p50`, `lines_p90`, `share_under_85`, `share_over_209`, `flag`; binary rows and lockfiles skipped, merges skipped | `git log --numstat --no-merges` |
+| `edit_survival.py --session <transcript> --repo <path> [--days 7]` | `files`, `files_without_commit`, `lines_added`, `lines_surviving`, `survival`: added lines (`new_string` minus `old_string`, or a Write's `content`, lines of 8+ chars) present at the first commit touching the file within `--days` after the edit | transcript `tool_use.input` plus `git log -- <path>` and `git show` |
+
 ## Prompt clusters and sample prompts
 
 `repeated_prompts` (exact: lower-cased, whitespace-collapsed sha256[:12]) and
