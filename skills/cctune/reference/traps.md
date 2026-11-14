@@ -78,7 +78,7 @@ Process traps
   name first, every `-e` after it, `--` before the command. Check every CLI in a manual
   step against its `--help` output from this run, not from memory.
 - "Rotate the key at <vendor>.dev" is wrong when the URL key beside it points at the
-  user's own host (FIRECRAWL_URL -> firecrawl.bicatalyst.ch). Resolve the host of every
+  user's own host (`FIRECRAWL_URL` pointing at `firecrawl.<your-domain>`). Resolve the host of every
   `*_URL` key before naming where a key is rotated; self-hosted means the deployment config.
 - Rotation before removing the literals breaks the service: Claude Code writes
   `settings.json` `env` into its own environment and `.zshrc` exports run after a sourced

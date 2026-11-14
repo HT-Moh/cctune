@@ -85,8 +85,8 @@ match aborts the skill.
    one message, each with the header, `reference/schema.md`, the scan summary, the window
    and the project list; K also gets the inventory totals and the coverage keys. Choose
    `model: sonnet` for the counting angles (A, C, D, E, H, I, K)
-   and the main model for B, F, G, L. If `$focus` is set, run only the angles that serve it plus
-   F and H. Wait for every report (rule 7).
+   and the main model for B, F, G, L. If `$focus` is set, run only the briefs the Focus table in
+   `reference/briefs.md` lists for it. Wait for every report (rule 7).
 4. **Synthesis.** Turn the findings into plan items per `reference/plan.md`: id, phase,
    risk, why, evidence, docs URL, impact with a number, `depends_on`, `consumers` (who reads
    a value you delete or replace; grep the key name), `reversible`, `takes_effect`,
@@ -123,6 +123,6 @@ match aborts the skill.
 
 ## Scale guidance
 
-Ten agents over 30 days of a heavy user cost roughly 650k–1M tokens in total.
-Under `focus=cost|speed|...` run the subset. If the inventory shows fewer than 20
+Eleven agents plus the adversarial pass over 30 days of a heavy user cost roughly 650k–1M tokens in total.
+Under a focus, run the subset the Focus table in `reference/briefs.md` names. If the inventory shows fewer than 20
 interactive sessions, skip brief B's timing analysis and say so.
