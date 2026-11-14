@@ -83,7 +83,11 @@ parent ended early (rule 7 of the skill). Do not use "parent edited after review
 signal when the parent is an orchestrator.
 
 ## F. Config and instruction layer
-Run `scripts/config_audit.sh` first. Then: plugin, skill, agent and MCP inventory
+Run `scripts/config_audit.sh` first, then
+`python3 ${CLAUDE_SKILL_DIR}/scripts/instruction_layer.py --project <repo>` once per project: it
+prints, per loaded file, tokens, instruction lines, emphasis hits and whether a test command is
+named, plus the global total with a flag over 100 instructions. Hook-injected text is not in
+it; add the `UserPromptSubmit` and `SessionStart` output by hand. Then: plugin, skill, agent and MCP inventory
 with usage counts from transcripts (name what disappears if each plugin is
 disabled); duplicate skills (same name in `~/.claude/skills` and a plugin); hooks
 per tool call and what text they inject; skill-description budget; CLAUDE.md
@@ -237,8 +241,9 @@ the user writes, not how the harness is set up (A–K). Four parts.
    question is a cost only when the prompt had already answered it; when the prompt was
    underspecified the question is the fix, and the item is the missing default, not the wait.
 3. The global layer. `~/.claude/CLAUDE.md`, every file it imports, `~/.claude/rules/*.md`,
-   and the text hooks inject on every prompt (`UserPromptSubmit`, `SessionStart`). Count
-   its tokens. Quote every pair of overlapping or conflicting rules with `path:line` for
+   and the text hooks inject on every prompt (`UserPromptSubmit`, `SessionStart`). Start from
+   `python3 ${CLAUDE_SKILL_DIR}/scripts/instruction_layer.py` (tokens, instruction lines and
+   emphasis per file; over 100 instructions is the flag) and add the hook text by hand. Quote every pair of overlapping or conflicting rules with `path:line` for
    both. For each rule that transcripts can check (file length, no scratch files, read
    before edit, tests before done), give the compliance count from the scan or a grep and
    say whether the rule, the wording or the placement should change. A rule that holds in

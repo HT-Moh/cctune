@@ -109,6 +109,16 @@ prompt clusters, same object shape as `patterns.near_duplicate_prompts` plus `le
 | `git_change_size.py --repos a,b --since YYYY-MM-DD` | one JSON row per repo: `commits`, `lines_p50`, `lines_p90`, `share_under_85`, `share_over_209`, `flag`; binary rows and lockfiles skipped, merges skipped | `git log --numstat --no-merges` |
 | `edit_survival.py --session <transcript> --repo <path> [--days 7]` | `files`, `files_without_commit`, `lines_added`, `lines_surviving`, `survival`: added lines (`new_string` minus `old_string`, or a Write's `content`, lines of 8+ chars) present at the first commit touching the file within `--days` after the edit | transcript `tool_use.input` plus `git log -- <path>` and `git show` |
 
+## Instruction layer (briefs F and L)
+
+`instruction_layer.py [--home ~] [--project <repo>]` prints JSON: `global` rows (`file`, `tokens`,
+`instructions`, `emphasis`, `names_test_command`) for `~/.claude/CLAUDE.md`, its `@imports` and
+`~/.claude/rules/*.md` in load order; `totals` with `flag` set over 100 instructions; `project`
+rows for `CLAUDE.md`, `AGENTS.md`, `.claude/rules/*.md` and their imports, with
+`names_test_command`. An instruction line is a bullet, a numbered step or a line opening with an
+imperative; emphasis is `IMPORTANT`, a word of 5+ capitals, or a think-hard/keep-going phrase.
+Counts and paths only.
+
 ## Prompt clusters and sample prompts
 
 `repeated_prompts` (exact: lower-cased, whitespace-collapsed sha256[:12]) and
