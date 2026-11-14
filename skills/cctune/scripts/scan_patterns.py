@@ -10,6 +10,7 @@ import re
 
 import scan_commands
 import scan_sequences
+from scan_prompts import PromptCluster, cluster_rows, is_nudge, near_key  # noqa: F401  (re-exported)
 
 EDIT_TOOLS = ("Edit", "Write", "MultiEdit", "NotebookEdit")
 LOOK_TOOLS = ("Read", "Grep", "Glob", "Bash", "Agent", "Skill", "WebFetch", "WebSearch")
@@ -18,33 +19,13 @@ OVERSIZED_CHARS = 20000
 INTERRUPT = "[Request interrupted by user"
 CREDENTIAL_PATH_RE = re.compile(r"(^|/)(\.env(\.[^/]*)?|id_(rsa|dsa|ecdsa|ed25519)|credentials(\.json)?|\.netrc|[^/]*\.(pem|key|p12|pfx))$")
 CREDENTIAL_EXAMPLE_RE = re.compile(r"\.(example|sample|template|dist)$")
-NUDGES = frozenset({"proceed", "continue", "yes", "y", "ok", "okay", "go", "go on", "go ahead", "next", "do it",
-                    "continue please", "proceed please", "yes proceed", "ok proceed"})
 TEST_RE = re.compile(r"\b(pytest|jest|vitest|mocha|cargo test|go test|make (test|check)|(npm|pnpm|yarn|bun) (run )?test|"
                      r"tox|unittest|rspec|phpunit|ruff|mypy|tsc|eslint|golangci-lint)\b")
 DONE_RE = re.compile(r"\b(tests? (now )?(pass|passing|green)|all green|suite (is )?green|implementation complete|"
                      r"done and (verified|tested)|verified (locally|in|with|by))\b", re.I)
-NEAR_NUMBER_RE = re.compile(r"\d+")
-NEAR_PATH_RE = re.compile(r"\S*/\S*")
-NEAR_QUOTE_RE = re.compile(r"(\"[^\"]*\"|'[^']*'|`[^`]*`)")
-NEAR_PUNCT_RE = re.compile(r"[^\w\s<>]")
-
-
-def near_key(text):
-    """Hash of the prompt with numbers, paths and quoted spans replaced; groups near-duplicates."""
-    s = NEAR_QUOTE_RE.sub("<q>", text.lower())
-    s = NEAR_PATH_RE.sub("<path>", s)
-    s = NEAR_NUMBER_RE.sub("0", s)
-    s = " ".join(NEAR_PUNCT_RE.sub(" ", s).split())
-    return hashlib.sha256(s.encode("utf-8")).hexdigest()[:12]
-
 
 def path_key(path):
     return hashlib.sha256(str(path).encode("utf-8")).hexdigest()[:12]
-
-
-def is_nudge(text):
-    return " ".join(NEAR_PUNCT_RE.sub(" ", text.lower()).split()) in NUDGES
 
 
 def is_credential_path(path):
@@ -76,37 +57,6 @@ def dangerous_forms(words):
     if "--no-verify" in flags:
         out.append("--no-verify")
     return out
-
-
-CLUSTER_MIN_SESSIONS = 3
-CLUSTER_MIN_OCCURRENCES = 5
-CLUSTER_FILES_KEPT = 5
-CLUSTER_ROWS_KEPT = 15
-
-
-class PromptCluster:
-    """Every message that hashes to one key: how many, in how many sessions, and where to look."""
-
-    def __init__(self):
-        self.sessions = set()
-        self.occurrences = 0
-        self.files = []
-
-    def add(self, session_name):
-        self.occurrences += 1
-        if session_name not in self.sessions and len(self.files) < CLUSTER_FILES_KEPT:
-            self.files.append(session_name)
-        self.sessions.add(session_name)
-
-    def is_recurring(self):
-        return len(self.sessions) >= CLUSTER_MIN_SESSIONS or self.occurrences >= CLUSTER_MIN_OCCURRENCES
-
-
-def cluster_rows(clusters):
-    """JSON-ready rows for the recurring clusters, most occurrences first, top 15."""
-    kept = sorted(((c.occurrences, k) for k, c in clusters.items() if c.is_recurring()), reverse=True)
-    return [{"hash": k, "sessions": len(clusters[k].sessions), "occurrences": n, "files": list(clusters[k].files)}
-            for n, k in kept[:CLUSTER_ROWS_KEPT]]
 
 
 class Patterns:
