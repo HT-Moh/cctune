@@ -77,7 +77,7 @@ match aborts the skill.
    occurrences and up to 5 session files, never the text; brief F reads samples with
    `scripts/prompt_samples.py`), recurring 3-step tool sequences
    (`patterns.recurring_tool_sequences`), agents and skills used, and the structural patterns
-   listed in `reference/schema.md` (reverts, dangerous forms, churn, duplicate reads,
+   listed in `reference/schema.md` (loops, failed edits, test edits in fix sessions, turn shape, dangerous forms, churn, duplicate reads,
    unverified done claims) and the coverage keys (skills matched by a prompt but never
    invoked, MCP servers configured but never called). Treat its numbers as the baseline
    every agent must stay consistent with.

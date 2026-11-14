@@ -228,3 +228,12 @@ def test_turns_and_edits_above_200k_context(tmp_path):
                           tool_use("c", "Edit", {"file_path": "/r/z"}, 2, "m3", small)])
     s = scan_patterns.summary(pop.patterns, 1)
     assert s["turns_above_200k"] == 2 and s["edits_above_200k"] == 1
+
+
+def test_short_prompt_edit_counts_only_when_the_edit_answers_the_first_prompt(tmp_path):
+    edit = tool_use("e", "Edit", {"file_path": "/r/x.py"}, 3)
+    pop = scan(tmp_path, [user_text("fix login", 0), assistant_text("Which login, web or cli?", 1), user_text("web", 2),
+                          edit, user_text("no, the other one", 4)], "a.jsonl")
+    _scan_into(pop, tmp_path, [user_text("fix login", 0), assistant_text("Looking.", 1), user_text("hurry", 2),
+                               edit, user_text("no, the other one", 4)], "b.jsonl")
+    assert scan_patterns.summary(pop.patterns, 2)["edit_without_question_short_prompt"] == 0

@@ -4,6 +4,7 @@ Human turns and tool calls per turn (Anthropic's internal baseline moved from 6.
 turns and 9.8 to 21.2 calls), an edit after a short prompt with no question asked back that
 the user then corrected (underspecified task, the strongest measured productivity lever),
 and assistant turns whose context exceeds 200k tokens (where effective recall degrades).
+The short-prompt edit counts only when the edit answers the first prompt (first human turn).
 """
 EDIT_TOOLS = ("Edit", "Write", "MultiEdit", "NotebookEdit")
 SHORT_PROMPT_CHARS = 300
@@ -62,7 +63,7 @@ def on_tool_use(name, st, t):
         t.edits_above_cap += 1
     if not st.first_edit_done:
         st.first_edit_done = True
-        st.unasked_short_edit = bool(st.first_prompt_short) and not st.asked
+        st.unasked_short_edit = bool(st.first_prompt_short) and not st.asked and st.human_turns == 1
 
 
 def finish_session(st, corrected, t):

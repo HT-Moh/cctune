@@ -92,7 +92,7 @@ and the brief that interprets it:
 | `orphaned_agents` | Agent calls with no tool_result before the file ends | E |
 | `cache_miss_ratio_median`, `_p90` | per session, `cache_creation / (cache_creation + cache_read)` | I |
 | `human_turns_per_session_median`, `_p90`, `tool_calls_per_human_turn` | real user messages (no interrupts, no boilerplate) per session, and tool calls over those turns; Anthropic's internal baseline moved 6.2 to 4.1 turns and 9.8 to 21.2 calls | B |
-| `edit_without_question_short_prompt` | sessions whose first prompt is under 300 chars, where no `AskUserQuestion` and no assistant text with `?` preceded the first edit, and a correction followed within 5 messages | L |
+| `edit_without_question_short_prompt` | sessions whose first prompt is under 300 chars, whose first edit answers that prompt (still the first human turn) with no `AskUserQuestion` and no assistant text with `?` before it, and where a correction followed within 5 messages | L |
 | `turns_above_200k`, `edits_above_200k` | assistant messages whose `input_tokens + cache_read_input_tokens` exceed 200k, and Edit/Write calls made in them; an inference about recall, not a validated threshold | I |
 | `recurring_tool_sequences` | 3 consecutive tool calls as argument-free tokens (`Bash:<prefix>`, `Skill:<name>`, `Agent:<type>`, else the tool name) seen in 3+ sessions; `{sequence: "A > B > C", sessions}`, top 15; a triple of one repeated tool is skipped | B |
 
