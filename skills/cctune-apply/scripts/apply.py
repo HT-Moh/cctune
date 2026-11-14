@@ -21,6 +21,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import backup  # noqa: E402
 import checks  # noqa: E402
+import ledger  # noqa: E402
 import plan_store  # noqa: E402
 import report  # noqa: E402
 import runner  # noqa: E402
@@ -134,12 +135,14 @@ def cmd_set_page(plan, plan_path, url):
 
 def cmd_migrate(plan, plan_path):
     raised = [it["id"] for it in plan["items"] if it.get("risk") == "safe" and effective_risk(it) == "review"]
-    plan_store.save_plan(plan, plan_path)
+    plan_store.rewrite_plan(plan, plan_path)
     say(f"{plan_path}: schema {plan['schema']} saved" + (f"; effective risk is review for: {', '.join(raised)}" if raised else ""))
 
 
 def dispatch(a) -> None:
     plan, plan_path = plan_store.load_plan(a.plan)
+    for warning in ledger.warnings():
+        say(f"WARNING {warning}")
     if a.explain:
         item = selection.by_id(plan).get(a.explain)
         if item is None:
@@ -171,8 +174,8 @@ def dispatch(a) -> None:
 def main(argv) -> int:
     a = parse(argv)
     tune_ops.secure_umask()
-    if a.list and not os.path.exists(a.plan or plan_store.latest_path()):
-        say(f"no plan at {a.plan or plan_store.latest_path()}. Run /cctune first.")
+    if a.list and not (a.plan or plan_store.newest_plan()):
+        say(f"no plan under {plan_store.plans_dir()}. Run /cctune first.")
         return 0
     try:
         with plan_store.locked():

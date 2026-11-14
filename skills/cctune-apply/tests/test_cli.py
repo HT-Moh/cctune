@@ -28,6 +28,13 @@ def mkitem(id, ops, risk="safe", deps=(), **over):
     return base
 
 
+def items_of(pf):
+    """The plan as the engine sees it: ledger state overlaid, keyed by id."""
+    import plan_store
+    plan, _ = plan_store.load_plan(str(pf))
+    return {it["id"]: it for it in plan["items"]}
+
+
 def mkplan(*items):
     return {"schema": 2, "generated": "g", "window_days": 30, "claude_version": "v", "summary": "s", "items": list(items)}
 
@@ -40,8 +47,6 @@ def two_item_plan(tmp_home, plan_file):
     review = mkitem("P0-03", [{"kind": "json_delete", "file": path, "path": ["cleanupPeriodDays"]}], risk="review",
                     deps=["P0-01"], consumers=["nobody"])
     pf = plan_file(mkplan(manual, safe, review))
-    import plan_store
-    plan_store.point_latest(pf)
     return pf, path
 
 
@@ -77,7 +82,7 @@ def test_apply_safe_item_end_to_end(two_item_plan):
     r = run("P6-01", "--expect", digest)
     assert r.returncode == 0, r.stdout + r.stderr
     assert json.loads(open(path).read()) == {"cleanupPeriodDays": 90}
-    assert json.loads(pf.read_text())["items"][1]["status"] == "applied"
+    assert items_of(pf)["P6-01"]["status"] == "applied"
     assert "--rollback P6-01" in r.stdout
 
 
@@ -97,7 +102,7 @@ def test_rollback_end_to_end(two_item_plan):
     run("P6-01", "--expect", digest)
     r = run("--rollback", "P6-01")
     assert r.returncode == 0 and json.loads(open(path).read()) == {"cleanupPeriodDays": 3650}
-    assert json.loads(pf.read_text())["items"][1]["status"] == "rolled_back"
+    assert items_of(pf)["P6-01"]["status"] == "rolled_back"
 
 
 def test_done_multiple_ids_and_unblock_message(two_item_plan, plan_file):
@@ -107,7 +112,7 @@ def test_done_multiple_ids_and_unblock_message(two_item_plan, plan_file):
     pf.write_text(json.dumps(plan))
     r = run("--done", "P0-01", "P0-02")
     assert r.returncode == 0 and "P0-03" in r.stdout
-    statuses = {it["id"]: it["status"] for it in json.loads(pf.read_text())["items"]}
+    statuses = {k: v["status"] for k, v in items_of(pf).items()}
     assert statuses["P0-01"] == "done" and statuses["P0-02"] == "done"
 
 
@@ -120,7 +125,7 @@ def test_undone_resets(two_item_plan):
     run("--done", "P0-01")
     r = run("--undone", "P0-01")
     pf, _ = two_item_plan
-    assert r.returncode == 0 and json.loads(pf.read_text())["items"][0]["status"] == "proposed"
+    assert r.returncode == 0 and items_of(pf)["P0-01"]["status"] == "proposed"
 
 
 def test_explain_prints_consumers_and_deps(two_item_plan):
@@ -132,10 +137,10 @@ def test_purge_backup_marks_item(two_item_plan):
     pf, _ = two_item_plan
     digest = re.search(r"digest: ([0-9a-f]{16})", run("--dry-run", "P6-01").stdout).group(1)
     run("P6-01", "--expect", digest)
-    bdir = json.loads(pf.read_text())["items"][1]["backup"]
+    bdir = items_of(pf)["P6-01"]["backup"]
     r = run("--purge-backup", "P6-01")
     assert r.returncode == 0 and not os.path.exists(bdir)
-    assert json.loads(pf.read_text())["items"][1]["status"] == "applied-purged"
+    assert items_of(pf)["P6-01"]["status"] == "applied-purged"
     assert run("--rollback", "P6-01").returncode == 1
 
 
@@ -173,7 +178,7 @@ def test_rollback_saves_after_each_item(two_item_plan):
     run("P6-01", "--expect", digest)
     r = run("--rollback", "P6-01", "P9-99")
     assert r.returncode == 1
-    assert json.loads(pf.read_text())["items"][1]["status"] == "rolled_back"
+    assert items_of(pf)["P6-01"]["status"] == "rolled_back"
 
 
 def test_page_without_recorded_url_says_how_to_record(two_item_plan):
@@ -185,8 +190,8 @@ def test_set_page_records_url_then_page_prints_it(two_item_plan):
     url = "https://claude.ai/artifact/F4MKKZG56qTCCZEfLzMGXt"
     r = run("--set-page", url)
     assert r.returncode == 0 and url in r.stdout
-    plan = json.loads(two_item_plan[0].read_text())
-    assert plan["page_url"] == url
+    import ledger
+    assert ledger.page_url() == url and "page_url" not in json.loads(two_item_plan[0].read_text())
     r = run("--page")
     assert r.returncode == 0 and r.stdout.startswith("page: " + url)
     assert ".html" in r.stdout
@@ -194,5 +199,5 @@ def test_set_page_records_url_then_page_prints_it(two_item_plan):
 
 def test_set_page_rejects_non_artifact_url(two_item_plan):
     r = run("--set-page", "https://example.com/x")
-    assert r.returncode == 1 and "page_url" in r.stdout
-    assert "page_url" not in json.loads(two_item_plan[0].read_text())
+    import ledger
+    assert r.returncode == 1 and "page_url" in r.stdout and ledger.page_url() is None

@@ -104,10 +104,12 @@ def test_apply_saves_plan_after_each_item_and_marks_failure(tmp_home, plan_file)
     _, digest = runner.dry_run(plan, [good, bad])
     pf = plan_file(plan)
     runner.apply_items(plan, [good, bad], pf, expect=digest, confirmed=set())
-    saved = json.loads(pf.read_text())
+    import plan_store
+    saved, _ = plan_store.load_plan(str(pf))
     status = {it["id"]: it["status"] for it in saved["items"]}
     assert status == {"P1-01": "applied", "P1-02": "failed"}
     assert os.path.isdir(saved["items"][0]["backup"])
+    assert "status" not in json.loads(pf.read_text())["items"][0] or json.loads(pf.read_text())["items"][0]["status"] == "proposed"
 
 
 def test_failed_item_is_restored(tmp_home, plan_file, monkeypatch):
