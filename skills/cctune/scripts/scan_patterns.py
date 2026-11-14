@@ -17,6 +17,8 @@ LOOK_TOOLS = ("Read", "Grep", "Glob", "Bash", "Agent", "Skill", "WebFetch", "Web
 CHURN_EDITS = 5
 OVERSIZED_CHARS = 20000
 INTERRUPT = "[Request interrupted by user"
+CORRECTION_RE = re.compile(r"^\W*(no\b|not\b|stop\b|wrong\b|don'?t\b|do not\b|undo\b|revert\b|i meant\b|instead\b)", re.I)
+CORRECTION_WINDOW = 5
 CREDENTIAL_PATH_RE = re.compile(r"(^|/)(\.env(\.[^/]*)?|id_(rsa|dsa|ecdsa|ed25519)|credentials(\.json)?|\.netrc|[^/]*\.(pem|key|p12|pfx))$")
 CREDENTIAL_EXAMPLE_RE = re.compile(r"\.(example|sample|template|dist)$")
 TEST_RE = re.compile(r"\b(pytest|jest|vitest|mocha|cargo test|go test|make (test|check)|(npm|pnpm|yarn|bun) (run )?test|"
@@ -34,11 +36,11 @@ def is_credential_path(path):
 
 
 def revert_form(words):
-    """`git checkout --`, `git reset`, `git revert`, `git stash`, `git restore`, or ''."""
+    """`git revert`, or `git reset` without `--hard` (that one is a dangerous form), else ''."""
     p = scan_commands.prefix_of_words(words)
-    if p == "git checkout":
-        return "git checkout --" if "--" in words else ""
-    return p if p in ("git reset", "git revert", "git stash", "git restore") else ""
+    if p == "git reset":
+        return "" if "--hard" in words else p
+    return p if p == "git revert" else ""
 
 
 def dangerous_forms(words):
@@ -67,6 +69,7 @@ class Patterns:
         self.dangerous = collections.Counter()
         self.credential_reads = 0
         self.premature_sessions = 0
+        self.premature_corrected = 0
         self.churn_files = 0
         self.repeated_bash = 0
         self.duplicate_reads = 0
@@ -92,6 +95,8 @@ class Session:
         self.pending = {}
         self.first_seen = False
         self.first_tool = None
+        self.after_edit_msgs = None
+        self.corrected = False
         self.last_tool = None
         self.last_bash = None
         self.edits = collections.Counter()
@@ -104,6 +109,7 @@ class Session:
 
 
 def on_user_text(text, sess, pat):
+    _note_correction(text, sess)
     if INTERRUPT in text:
         pat.interrupt_before[sess.last_tool or "(none)"] += 1
         return
@@ -111,6 +117,15 @@ def on_user_text(text, sess, pat):
     if is_nudge(text):
         pat.nudges += 1
     pat.near_prompts[near_key(text)].add(sess.name)
+
+
+def _note_correction(text, sess):
+    """A correction is an interrupt or a negating opener within 5 messages of the first edit."""
+    if sess.after_edit_msgs is None or sess.after_edit_msgs >= CORRECTION_WINDOW:
+        return
+    sess.after_edit_msgs += 1
+    if INTERRUPT in text or CORRECTION_RE.match(text):
+        sess.corrected = True
 
 
 def on_assistant_text(text, sess, pat):
@@ -135,6 +150,8 @@ def on_tool_use(block, sess, pat):
     if name == "Agent":
         sess.agents.add(block.get("id"))
     if name in EDIT_TOOLS:
+        if sess.after_edit_msgs is None:
+            sess.after_edit_msgs = 0
         sess.edits[path_key(inp.get("file_path") or inp.get("notebook_path") or "")] += 1
     if name == "Read" and is_credential_path(inp.get("file_path", "")):
         pat.credential_reads += 1
@@ -187,6 +204,7 @@ def on_tool_result(block, call, sess, pat, elapsed):
 def finish_session(sess, pat):
     if sess.first_tool in EDIT_TOOLS:
         pat.premature_sessions += 1
+        pat.premature_corrected += int(sess.corrected)
     pat.churn_files += sum(1 for n in sess.edits.values() if n > CHURN_EDITS)
     pat.orphaned_agents += len(sess.agents)
     total = sess.cache_creation + sess.cache_read
@@ -209,6 +227,7 @@ def summary(pat, n_sessions):
         "reverts": pat.reverts.most_common(), "dangerous_forms": pat.dangerous.most_common(),
         "credential_reads": pat.credential_reads,
         "premature_sessions": pat.premature_sessions, "premature_share": round(pat.premature_sessions / n_sessions, 3) if n_sessions else 0,
+        "premature_corrected_sessions": pat.premature_corrected,
         "churn_files_over_5_edits": pat.churn_files, "repeated_bash": pat.repeated_bash,
         "duplicate_reads": pat.duplicate_reads, "duplicate_read_chars": pat.duplicate_read_chars,
         "oversized_results_over_20k": pat.oversized_results.most_common(),

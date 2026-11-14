@@ -115,16 +115,18 @@ CLAUDE.md lesson ("when X, do not Y"), never a skill. Report cluster size (`sess
 
 ## G. Quality
 Read-only `gh run list --limit 200`, `gh pr list --state all --limit 100`,
-`git log --since`. CI failures on PR branches and their jobs; reverts and hotfixes;
+`git log --since`. CI failures on PR branches and their jobs; hotfixes;
 PRs with 2+ fix commits and the cause of each fix (reviewer finding, CI, user,
 self-correction, scope); which checks ran before "done" claims: the scan's `patterns.done_claims` and
 `patterns.done_without_verify` count assistant text that claims tests pass or work is
 complete with no test or lint command since the last user prompt; read 10 flagged turns
 and report how many are real unverified claims (MAST FM-3.2, no or incomplete
 verification) versus prose that mentions tests. `patterns.premature_sessions` counts
-sessions whose first tool call edits before any read; `patterns.churn_files_over_5_edits`
-counts files edited more than 5 times in one session; `patterns.reverts` counts undo
-commands. For each, read 5 sessions and name the cause with one of: no runnable
+sessions whose first tool call edits before any read and `patterns.premature_corrected_sessions`
+the subset the user corrected within 5 messages: report the second, the first is descriptive;
+`patterns.churn_files_over_5_edits` counts files edited more than 5 times in one session;
+`patterns.reverts` counts `git revert` and soft `git reset` and is never a quality headline
+(revert rates of agent and human commits are alike). For each, read 5 sessions and name the cause with one of: no runnable
 check named, spec underspecified, edit before read, scope grew. Never "no plan mode" or "no
 test first": neither is measured to help. State what the numbers cannot show.
 

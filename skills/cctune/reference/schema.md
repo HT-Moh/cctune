@@ -71,10 +71,11 @@ and the brief that interprets it:
 
 | Key | Measures | Brief |
 |---|---|---|
-| `reverts` | Bash `git checkout --`, `git reset`, `git revert`, `git stash`, `git restore` by form | G |
+| `reverts` | Bash `git revert` and `git reset` without `--hard` (`--hard` is a dangerous form). Descriptive only: revert rate is insensitive to AI quality (1.1% vs 1.6% human) | G |
 | `dangerous_forms` | `rm -rf`, `git push --force` (not `--force-with-lease`), `git reset --hard`, `git clean -f`, `--no-verify`; the 5-count cut in brief D is a heuristic | D, H |
 | `credential_reads` | Read of `.env*`, `id_*`, `*.pem`, `*.key`, `credentials`, `.netrc` (not `.example`/`.sample`) | H |
-| `premature_sessions`, `premature_share` | sessions whose first tool call is Edit/Write before any Read/Grep/Glob | G |
+| `premature_sessions`, `premature_share` | sessions whose first tool call is Edit/Write before any Read/Grep/Glob; descriptive, unvalidated | G |
+| `premature_corrected_sessions` | the subset where one of the 5 user messages after the first edit is an interrupt or opens with a negation (`no`, `wrong`, `undo`, `I meant`) | G |
 | `churn_files_over_5_edits` | (session, path) pairs edited more than 5 times | G |
 | `repeated_bash` | identical Bash command issued twice in a row | C |
 | `duplicate_reads`, `duplicate_read_chars` | a Read of a path already read in the session, and the chars re-read | I |
@@ -88,7 +89,7 @@ and the brief that interprets it:
 | `cache_miss_ratio_median`, `_p90` | per session, `cache_creation / (cache_creation + cache_read)` | I |
 | `recurring_tool_sequences` | 3 consecutive tool calls as argument-free tokens (`Bash:<prefix>`, `Skill:<name>`, `Agent:<type>`, else the tool name) seen in 3+ sessions; `{sequence: "A > B > C", sessions}`, top 15; a triple of one repeated tool is skipped | B |
 
-Also in the population summary: `write_edit_ratio` (Write calls per Edit call),
+Also in the population summary: `write_edit_ratio` (Write calls per Edit call; descriptive, no published baseline),
 `ask_interrupt_ratio` (AskUserQuestion calls per interrupt) and `repeated_prompts` (exact
 prompt clusters, same object shape as `patterns.near_duplicate_prompts` plus `len`).
 

@@ -47,10 +47,28 @@ def bash(uid, cmd, seconds=0):
     return tool_use(uid, "Bash", {"command": cmd}, seconds)
 
 
-def test_revert_forms_counted_by_prefix(tmp_path):
+def test_reverts_count_only_git_revert_and_soft_reset(tmp_path):
     pop = scan(tmp_path, [bash("a", "git checkout -- src/x.py"), bash("b", "git checkout main"),
-                          bash("c", "git reset --hard HEAD~1"), bash("d", "git stash"), bash("e", "git restore x")])
-    assert pop.patterns.reverts == {"git checkout --": 1, "git reset": 1, "git stash": 1, "git restore": 1}
+                          bash("c", "git reset --hard HEAD~1"), bash("d", "git stash"), bash("e", "git restore x"),
+                          bash("f", "git revert abc123"), bash("g", "git reset HEAD~1")])
+    assert pop.patterns.reverts == {"git revert": 1, "git reset": 1}
+    assert pop.patterns.dangerous == {"git reset --hard": 1}
+
+
+def _scan_into(pop, tmp_path, events, name):
+    f = tmp_path / name
+    f.write_text("\n".join(json.dumps(e) for e in events) + "\n")
+    scan_lib.scan_file(str(f), lambda e, p: pop, 10 ** 9, cutoff=0)
+
+
+def test_premature_session_corrected_within_five_messages(tmp_path):
+    opener = [user_text("fix it"), tool_use("a", "Edit", {"file_path": "/r/x.py"})]
+    pop = scan(tmp_path, opener + [user_text("no, wrong file", 2)], "a.jsonl")
+    _scan_into(pop, tmp_path, opener + [user_text("now add tests", 2)], "b.jsonl")
+    _scan_into(pop, tmp_path, opener + [user_text(f"step {i}", i) for i in range(5)] + [user_text("no, undo that", 9)], "c.jsonl")
+    _scan_into(pop, tmp_path, opener + [user_text("[Request interrupted by user]", 2)], "d.jsonl")
+    assert pop.patterns.premature_sessions == 4 and pop.patterns.premature_corrected == 2
+    assert scan_patterns.summary(pop.patterns, 4)["premature_corrected_sessions"] == 2
 
 
 def test_dangerous_forms_counted(tmp_path):

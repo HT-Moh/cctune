@@ -105,7 +105,7 @@ def print_summary(out):
         print(f"   repeated_prompts(hash,sessions,occ)={cluster_brief(d['repeated_prompts'])}")
         pt = d["patterns"]
         print(f"   patterns: reverts={pt['reverts'][:4]} dangerous={pt['dangerous_forms'][:4]} cred_reads={pt['credential_reads']} "
-              f"premature={pt['premature_sessions']} churn={pt['churn_files_over_5_edits']} repeat_bash={pt['repeated_bash']}")
+              f"premature={pt['premature_sessions']} (corrected={pt['premature_corrected_sessions']}) churn={pt['churn_files_over_5_edits']} repeat_bash={pt['repeated_bash']}")
         print(f"   patterns: dup_reads={pt['duplicate_reads']} ({pt['duplicate_read_chars'] // 1000}k chars) oversized={pt['oversized_results_over_20k'][:4]} "
               f"nudges={pt['nudge_prompts']} near_dup(hash,sessions,occ)={cluster_brief(pt['near_duplicate_prompts'])}")
         print(f"   patterns: done_claims={pt['done_claims']} unverified={pt['done_without_verify']} interrupt_before={pt['interrupt_before_tool'][:4]} "
