@@ -197,3 +197,34 @@ def test_near_duplicate_cluster_from_five_occurrences_in_one_session(tmp_path):
     pop = scan(tmp_path, [user_text(f"merge PR {n}") for n in range(5)])
     rows = scan_patterns.summary(pop.patterns, len(pop.sessions))["near_duplicate_prompts"]
     assert [(r["sessions"], r["occurrences"]) for r in rows] == [(1, 5)]
+
+
+def test_human_turns_and_tool_calls_per_turn(tmp_path):
+    pop = scan(tmp_path, [user_text("do a", 0), bash("a", "ls", 1), bash("b", "ls -a", 2),
+                          user_text("[Request interrupted by user]", 3), user_text("do b", 4), bash("c", "pwd", 5)], "a.jsonl")
+    _scan_into(pop, tmp_path, [user_text("do c", 0)] + [bash(f"x{i}", f"ls {i}", i + 1) for i in range(5)], "b.jsonl")
+    s = scan_patterns.summary(pop.patterns, 2)
+    assert s["human_turns_per_session_median"] == 2 and s["human_turns_per_session_p90"] == 2
+    assert s["tool_calls_per_human_turn"] == round(8 / 3, 1)
+
+
+def test_edit_without_question_after_short_prompt_then_corrected(tmp_path):
+    edit = tool_use("e", "Edit", {"file_path": "/r/x.py"}, 1)
+    pop = scan(tmp_path, [user_text("fix login", 0), edit, user_text("no, the other login", 2)], "a.jsonl")
+    _scan_into(pop, tmp_path, [user_text("fix login", 0), tool_use("q", "AskUserQuestion", {"questions": []}, 1),
+                               edit, user_text("no, the other login", 3)], "b.jsonl")
+    _scan_into(pop, tmp_path, [user_text("fix login", 0), assistant_text("Which login: web or cli?", 1), edit,
+                               user_text("no, the other login", 3)], "c.jsonl")
+    _scan_into(pop, tmp_path, [user_text("fix login in /r/x.py: " + "detail " * 60, 0), edit, user_text("no", 2)], "d.jsonl")
+    _scan_into(pop, tmp_path, [user_text("fix login", 0), edit, user_text("thanks, next", 2)], "e.jsonl")
+    assert scan_patterns.summary(pop.patterns, 5)["edit_without_question_short_prompt"] == 1
+
+
+def test_turns_and_edits_above_200k_context(tmp_path):
+    big = {"input_tokens": 1000, "cache_read_input_tokens": 200000, "cache_creation_input_tokens": 0, "output_tokens": 5}
+    small = {"input_tokens": 1000, "cache_read_input_tokens": 50000, "cache_creation_input_tokens": 0, "output_tokens": 5}
+    pop = scan(tmp_path, [tool_use("a", "Edit", {"file_path": "/r/x"}, 0, "m1", big),
+                          tool_use("b", "Read", {"file_path": "/r/y"}, 1, "m2", big),
+                          tool_use("c", "Edit", {"file_path": "/r/z"}, 2, "m3", small)])
+    s = scan_patterns.summary(pop.patterns, 1)
+    assert s["turns_above_200k"] == 2 and s["edits_above_200k"] == 1

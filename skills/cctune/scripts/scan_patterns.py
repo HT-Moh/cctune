@@ -11,6 +11,7 @@ import re
 import scan_commands
 import scan_quality
 import scan_sequences
+import scan_turns
 from scan_prompts import PromptCluster, cluster_rows, is_nudge, near_key  # noqa: F401  (re-exported)
 
 EDIT_TOOLS = ("Edit", "Write", "MultiEdit", "NotebookEdit")
@@ -72,6 +73,7 @@ class Patterns:
         self.premature_corrected = 0
         self.churn_files = 0
         self.quality = scan_quality.Quality()
+        self.turns = scan_turns.Turns()
         self.duplicate_reads = 0
         self.duplicate_read_chars = 0
         self.oversized_results = collections.Counter()
@@ -99,6 +101,7 @@ class Session:
         self.corrected = False
         self.last_tool = None
         self.quality = scan_quality.SessionQuality()
+        self.turns = scan_turns.SessionTurns()
         self.edits = collections.Counter()
         self.reads = collections.Counter()
         self.verified = False
@@ -115,6 +118,7 @@ def on_user_text(text, sess, pat):
         return
     sess.verified = False
     scan_quality.on_prompt(text, sess.quality)
+    scan_turns.on_prompt(text, sess.turns)
     if is_nudge(text):
         pat.nudges += 1
     pat.near_prompts[near_key(text)].add(sess.name)
@@ -130,13 +134,15 @@ def _note_correction(text, sess):
 
 
 def on_assistant_text(text, sess, pat):
+    scan_turns.on_assistant_text(text, sess.turns)
     if DONE_RE.search(text):
         pat.done_claims += 1
         if not sess.verified:
             pat.done_without_verify += 1
 
 
-def on_usage(usage, sess):
+def on_usage(usage, sess, pat):
+    scan_turns.on_usage(usage, sess.turns, pat.turns)
     sess.cache_creation += usage.get("cache_creation_input_tokens", 0)
     sess.cache_read += usage.get("cache_read_input_tokens", 0)
 
@@ -148,6 +154,7 @@ def on_tool_use(block, sess, pat):
         sess.first_tool = name
     sess.last_tool = name
     scan_quality.on_tool_use(name, inp, sess.quality, pat.quality)
+    scan_turns.on_tool_use(name, sess.turns, pat.turns)
     scan_sequences.record(scan_sequences.token_of(name, inp), sess.recent_tools, sess.name, pat.sequences)
     if name == "Agent":
         sess.agents.add(block.get("id"))
@@ -207,6 +214,7 @@ def finish_session(sess, pat):
     pat.churn_files += sum(1 for n in sess.edits.values() if n > CHURN_EDITS)
     pat.orphaned_agents += len(sess.agents)
     scan_quality.finish_session(sess.quality, pat.quality)
+    scan_turns.finish_session(sess.turns, sess.corrected, pat.turns)
     total = sess.cache_creation + sess.cache_read
     if total:
         pat.cache_miss_ratio.append(round(sess.cache_creation / total, 3))
@@ -238,4 +246,5 @@ def summary(pat, n_sessions):
         "cache_miss_ratio_median": _pct(pat.cache_miss_ratio, 0.5), "cache_miss_ratio_p90": _pct(pat.cache_miss_ratio, 0.9),
         "recurring_tool_sequences": scan_sequences.rows(pat.sequences),
         **scan_quality.summary(pat.quality),
+        **scan_turns.summary(pat.turns),
     }

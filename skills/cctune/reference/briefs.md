@@ -28,7 +28,9 @@ user message by task type (deploy, CI fix, refactor, content, debugging, researc
 model time vs tool time vs idle gaps. Report the idle-gap distribution (p50, p90), never a
 single cut; label gaps "review or absence", not "think time", and split them by whether the
 turn before the gap ended in an edit or in a question. Session length,
-compactions per session, crash/resume openers. Prompts typed in 3+ sessions.
+compactions per session, crash/resume openers. `patterns.human_turns_per_session_median` and
+`patterns.tool_calls_per_human_turn` against the 4.1 turns and 21.2 calls Anthropic measured
+internally: more turns per session with fewer calls per turn is the user steering by hand. Prompts typed in 3+ sessions.
 Tool sequences of 3+ steps that recur and are not a skill yet: start from
 `patterns.recurring_tool_sequences` (3-grams of argument-free tool tokens with the number of
 sessions each appears in); for each sequence in 5+ sessions, read two sessions to name the
@@ -73,9 +75,9 @@ Every `subagents/agent-*.jsonl` in the window, grouped by `agentType` from
 edits yes/no, failures/timeouts/TaskStop. Runs over 100k fresh tokens. Read-only
 types running on the most expensive model. Parallelism: summed duration vs wall span;
 same-file edits by concurrent agents. Rework: a later agent editing a file an earlier
-agent wrote in the same session. Subagent fresh tokens over main-thread fresh tokens per
-session: a share over 1 with wall span near the summed duration is sequential delegation
-that bought no parallelism; flag Agent calls that edited one file with no concurrent sibling. `patterns.orphaned_agents` in the interactive population
+agent wrote in the same session. `subagent_token_share_median` and `sessions_subagent_share_over_1` in the interactive summary
+give subagent fresh tokens over main-thread fresh tokens per session: a share over 1 with
+wall span near the summed duration is sequential delegation that bought no parallelism; flag Agent calls that edited one file with no concurrent sibling. `patterns.orphaned_agents` in the interactive population
 counts Agent calls whose result never arrived before the session ended: each is a turn the
 parent ended early (rule 7 of the skill). Do not use "parent edited after review" as a value
 signal when the parent is an orchestrator.
@@ -157,7 +159,10 @@ item that runs it over the files agent sessions edited in the window.
 
 ## I. Context economics
 Over all interactive sessions first: distributions (p50, p90) of compactions per session,
-duplicate Reads and oversized results, from the scan. Then the 3 largest sessions as
+duplicate Reads and oversized results, from the scan; `patterns.turns_above_200k` and
+`patterns.edits_above_200k` count assistant turns past 200k tokens of context and the edits
+made there (an inference from recall studies, not a validated cut; `/compact` with a focus or
+`autoCompactWindow` is the lever). Then the 3 largest sessions as
 examples, never as the measurement: compaction count, `preTokens` before each,
 `postTokens` after, re-explaining in the next 5 user messages, duplicate Reads of the
 same path and their cost, tool results over 20k chars by tool, and the first-request
@@ -221,7 +226,9 @@ the user writes, not how the harness is set up (A–K). Four parts.
    redirects the work); words such as `no`, `I meant`, `wrong` say where to read, not what
    to count. Report the correction share per grade (0 to 4 points met), the share of
    sessions corrected before the first commit, and which point the corrected prompts
-   lacked most often.
+   lacked most often. `patterns.edit_without_question_short_prompt` is the scan's count of
+   sessions where a prompt under 300 chars led to an edit with no question asked and a
+   correction followed; start the reading there.
 2. Questions asked back. `AskUserQuestion` calls and the wait each caused
    (`tool_wait_seconds_total_n_mean`). For the 10 longest waits, read the question and the
    prompt before it: name what the prompt left open and the one line that would have
