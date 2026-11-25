@@ -5,7 +5,8 @@ import scan_levers
 
 QUIET = {
     "interactive": {"sessions": 30, "first_request_tokens_median": 12000,
-                    "patterns": {"nudge_prompts": 4, "done_without_verify": 3}},
+                    "patterns": {"nudge_prompts": 4, "done_without_verify": 3, "sessions_outside_cwd": 1,
+                                 "calls_outside_cwd": 2, "sessions_in_concurrent_pairs": 0, "worktree_sessions": 0}},
     "headless": {"sessions": 20, "first_request_tokens_median": 12000,
                  "patterns": {"nudge_prompts": 0, "done_without_verify": 0}},
     "subagent": {"sessions": 500, "first_request_tokens_median": 60000,
@@ -16,7 +17,8 @@ QUIET = {
 def _loud():
     out = copy.deepcopy(QUIET)
     out["headless"].update({"sessions": 2228, "first_request_tokens_median": 10091})
-    out["interactive"]["patterns"].update({"nudge_prompts": 72, "done_without_verify": 72})
+    out["interactive"]["patterns"].update({"nudge_prompts": 72, "done_without_verify": 72, "sessions_outside_cwd": 7,
+                                           "calls_outside_cwd": 43, "sessions_in_concurrent_pairs": 10})
     return out
 
 
@@ -71,8 +73,30 @@ def test_missing_keys_do_not_fire_or_crash():
 
 def test_rows_are_stable_in_order():
     first = scan_levers.evaluate(_loud())
-    assert [r["id"] for r in first] == ["headless_bare", "stop_hook"]
+    assert [r["id"] for r in first] == ["headless_bare", "stop_hook", "additional_directories", "worktrees"]
     assert first == scan_levers.evaluate(_loud())
+
+
+def test_additional_directories_fires_on_repeated_work_outside_cwd():
+    row = _by_id(scan_levers.evaluate(_loud()))["additional_directories"]
+    assert row["population"] == "interactive" and "additionalDirectories" in row["feature"]
+    assert row["evidence"] == {"patterns.sessions_outside_cwd": 7, "patterns.calls_outside_cwd": 43}
+    out = _loud()
+    out["interactive"]["patterns"]["sessions_outside_cwd"] = 2
+    assert "additional_directories" not in _by_id(scan_levers.evaluate(out))
+    out["interactive"]["patterns"].update({"sessions_outside_cwd": 3, "calls_outside_cwd": 19})
+    assert "additional_directories" not in _by_id(scan_levers.evaluate(out))
+
+
+def test_worktrees_fires_on_concurrent_sessions_without_any_worktree():
+    row = _by_id(scan_levers.evaluate(_loud()))["worktrees"]
+    assert row["population"] == "interactive" and "claude -w" in row["feature"]
+    assert row["evidence"] == {"patterns.sessions_in_concurrent_pairs": 10, "patterns.worktree_sessions": 0}
+    out = _loud()
+    out["interactive"]["patterns"]["worktree_sessions"] = 1
+    assert "worktrees" not in _by_id(scan_levers.evaluate(out))
+    out["interactive"]["patterns"].update({"worktree_sessions": 0, "sessions_in_concurrent_pairs": 3})
+    assert "worktrees" not in _by_id(scan_levers.evaluate(out))
 
 
 def test_scan_output_carries_levers_and_prints_them(monkeypatch, tmp_path, capsys):

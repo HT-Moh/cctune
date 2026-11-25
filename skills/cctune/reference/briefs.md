@@ -64,6 +64,8 @@ window means the user is driving a loop by hand; recommend `/goal <check>` with 
 check, or a Stop hook that runs a named command. Never recommend an "always continue" rule
 or an unattended loop without a check: "keep going" is a retired practice and
 over-persistence is a measured failure mode.
+A `worktrees` lever row is a `claude -w <name>` item: `sessions_in_concurrent_pairs` sessions shared one
+checkout at once and none ran in a worktree; name the project dirs from the span hashes only.
 
 ## C. Waits and operations
 Top 20 Bash patterns by total wall time; calls over 120 s and 600 s timeouts;
@@ -143,6 +145,8 @@ a repeated prompt as typing and consistency, never as a better outcome: slash co
 measured no gain over plain prompting. A cluster whose sessions mostly failed becomes a
 CLAUDE.md lesson ("when X, do not Y"), never a skill. Report cluster size (`sessions`,
 `occurrences`), the proposed name and the destination path.
+An `additional_directories` lever row is a `permissions.additionalDirectories` item: list the
+outside directories only as the count `outside_dirs_distinct`; the user names the repositories.
 
 ## G. Quality
 Read-only `gh run list --limit 200`, `gh pr list --state all --limit 100`,
