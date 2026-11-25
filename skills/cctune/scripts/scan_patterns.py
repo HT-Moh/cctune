@@ -8,6 +8,7 @@ import collections
 import re
 
 import scan_commands
+import scan_concurrency
 import scan_paths
 import scan_quality
 import scan_sequences
@@ -72,6 +73,7 @@ class Patterns:
         self.quality = scan_quality.Quality()
         self.turns = scan_turns.Turns()
         self.paths = scan_paths.Paths()
+        self.concurrency = scan_concurrency.Concurrency()
         self.duplicate_reads = 0
         self.duplicate_read_chars = 0
         self.oversized_results = collections.Counter()
@@ -90,8 +92,9 @@ class Patterns:
 class Session:
     """Per-file state: open tool calls plus what the detectors need to remember."""
 
-    def __init__(self, name):
+    def __init__(self, name, project_dir=""):
         self.name = name
+        self.span = scan_concurrency.SessionSpan(project_dir)
         self.pending = {}
         self.first_seen = False
         self.first_tool = None
@@ -110,8 +113,9 @@ class Session:
         self.recent_tools = scan_sequences.new_window()
 
 
-def on_event(ev, sess):
+def on_event(ev, sess, when=None):
     scan_paths.on_event(ev, sess.paths)
+    scan_concurrency.on_event(when, sess.span)
 
 
 def on_user_text(text, sess, pat):
@@ -220,6 +224,7 @@ def finish_session(sess, pat):
     scan_quality.finish_session(sess.quality, pat.quality)
     scan_turns.finish_session(sess.turns, sess.corrected, pat.turns)
     scan_paths.finish_session(sess.paths, pat.paths)
+    scan_concurrency.finish_session(sess.name, sess.span, pat.concurrency)
     total = sess.cache_creation + sess.cache_read
     if total:
         pat.cache_miss_ratio.append(round(sess.cache_creation / total, 3))
@@ -253,4 +258,5 @@ def summary(pat, n_sessions):
         **scan_quality.summary(pat.quality),
         **scan_turns.summary(pat.turns),
         **scan_paths.summary(pat.paths),
+        **scan_concurrency.summary(pat.concurrency),
     }
