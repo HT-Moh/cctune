@@ -13,6 +13,7 @@
 | Skills, agents, commands | `~/.claude/skills/<name>/SKILL.md` (often symlinks), `~/.claude/agents/*.md`, `~/.claude/commands/*.md`; project `.claude/skills`, `.claude/agents` |
 | Plugins | `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/` with `hooks/hooks.json`, `agents/`, `skills/`, `.mcp.json`; `enabledPlugins` in settings |
 | Project permissions | `<repo>/.claude/settings.json`, `<repo>/.claude/settings.local.json` (allow lists grow here) |
+| Scan cache | `~/.claude/tune/work/cache/<hash>.json`: one record per transcript (counts, hashes, session names; same secret check as `scan.json`), reused while the file's size and mtime, the `scan*.py` sources and the inventory are unchanged and the window covers its first event; `scan.py --no-cache` ignores it, records unused for 90 days are pruned |
 | Secret-bearing copies | `~/.claude/settings.json.*`, `~/.claude/backups/`, `~/.claude/history.jsonl`, `~/.claude/file-history/` |
 
 `<project-dir>` is the working directory with `/` replaced by `-`. Scratchpad sessions
@@ -102,6 +103,18 @@ Also in the interactive summary: `sessions_with_subagents`, `subagent_token_shar
 through the `<session-id>/subagents/` path). In every population summary: `write_edit_ratio` (Write calls per Edit call; descriptive, no published baseline),
 `ask_interrupt_ratio` (AskUserQuestion calls per interrupt) and `repeated_prompts` (exact
 prompt clusters, same object shape as `patterns.near_duplicate_prompts` plus `len`).
+
+## Levers (`scan.json` → `levers`, computed by `scripts/scan_levers.py`)
+
+Fixed thresholds over the finished summary, so the same data gives the same rows on every run.
+Each row: `id`, `population`, `feature` (the Claude Code feature that removes the pattern),
+`evidence` (the keys and values that crossed the threshold), `threshold` (the rule as text,
+marked heuristic), `docs` (a page `docs_fetch.sh` fetches). An empty list means nothing crossed.
+
+| id | population | fires when | feature | brief |
+|---|---|---|---|---|
+| `headless_bare` | headless | `sessions >= 50` and `first_request_tokens_median >= 5000` | `claude -p --bare` plus the flags that load what the run needs | A |
+| `stop_hook` | interactive | `patterns.nudge_prompts + patterns.done_without_verify >= 20` | a `Stop` hook that runs the project's done-check | D |
 
 ## Git-backed quality scripts (brief G)
 
