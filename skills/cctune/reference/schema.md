@@ -116,6 +116,8 @@ marked heuristic), `docs` (a page `docs_fetch.sh` fetches). An empty list means 
 |---|---|---|---|---|
 | `headless_bare` | headless | `sessions >= 50` and `first_request_tokens_median >= 5000` | `claude -p --bare` plus the flags that load what the run needs | A |
 | `stop_hook` | interactive | `patterns.nudge_prompts + patterns.done_without_verify >= 20` | a `Stop` hook that runs the project's done-check | D |
+| `additional_directories` | interactive | `patterns.sessions_outside_cwd >= 3` and `patterns.calls_outside_cwd >= 20` | `permissions.additionalDirectories` for the second repository, or `--add-dir` | F |
+| `worktrees` | interactive | `patterns.sessions_in_concurrent_pairs >= 4` and `patterns.worktree_sessions == 0` | `claude -w <name>` per parallel session | B |
 
 ## Git-backed quality scripts (brief G)
 

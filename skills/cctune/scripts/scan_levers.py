@@ -7,12 +7,15 @@ feature that removes the pattern and the docs page (one `docs_fetch.sh` fetches)
 documents it. Thresholds are heuristics; the row says which.
 """
 DOCS_BASE = "https://code.claude.com/docs/en/"
-DOCS_PAGES = ("cli-reference", "headless", "hooks", "hooks-guide", "worktrees", "settings")
+DOCS_PAGES = ("cli-reference", "headless", "hooks", "hooks-guide", "worktrees", "settings", "permissions")
 ROW_FIELDS = ("id", "population", "feature", "evidence", "threshold", "docs")
 
 HEADLESS_MIN_SESSIONS = 50
 HEADLESS_MIN_FIRST_REQUEST = 5000
 STOP_HOOK_MIN_EVENTS = 20
+OUTSIDE_MIN_SESSIONS = 3
+OUTSIDE_MIN_CALLS = 20
+CONCURRENT_MIN_SESSIONS = 4
 
 
 def _lookup(summary, dotted):
@@ -32,6 +35,14 @@ def _stop_hook(values):
     return values["patterns.nudge_prompts"] + values["patterns.done_without_verify"] >= STOP_HOOK_MIN_EVENTS
 
 
+def _additional_directories(values):
+    return values["patterns.sessions_outside_cwd"] >= OUTSIDE_MIN_SESSIONS and values["patterns.calls_outside_cwd"] >= OUTSIDE_MIN_CALLS
+
+
+def _worktrees(values):
+    return values["patterns.sessions_in_concurrent_pairs"] >= CONCURRENT_MIN_SESSIONS and values["patterns.worktree_sessions"] == 0
+
+
 LEVERS = (
     {"id": "headless_bare", "population": "headless",
      "keys": ("sessions", "first_request_tokens_median"), "rule": _headless_bare,
@@ -43,6 +54,16 @@ LEVERS = (
      "feature": "Stop hook that runs the project's done-check and blocks the stop while it fails",
      "threshold": f"nudge_prompts + done_without_verify >= {STOP_HOOK_MIN_EVENTS} (heuristic)",
      "docs": "hooks"},
+    {"id": "additional_directories", "population": "interactive",
+     "keys": ("patterns.sessions_outside_cwd", "patterns.calls_outside_cwd"), "rule": _additional_directories,
+     "feature": "permissions.additionalDirectories in settings for the second repository, or --add-dir per session",
+     "threshold": f"sessions_outside_cwd >= {OUTSIDE_MIN_SESSIONS} and calls_outside_cwd >= {OUTSIDE_MIN_CALLS} (heuristic)",
+     "docs": "permissions"},
+    {"id": "worktrees", "population": "interactive",
+     "keys": ("patterns.sessions_in_concurrent_pairs", "patterns.worktree_sessions"), "rule": _worktrees,
+     "feature": "claude -w <name> for each parallel session on one checkout",
+     "threshold": f"sessions_in_concurrent_pairs >= {CONCURRENT_MIN_SESSIONS} and worktree_sessions == 0 (heuristic)",
+     "docs": "worktrees"},
 )
 
 
