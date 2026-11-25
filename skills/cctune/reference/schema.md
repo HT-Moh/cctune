@@ -102,6 +102,18 @@ through the `<session-id>/subagents/` path). In every population summary: `write
 `ask_interrupt_ratio` (AskUserQuestion calls per interrupt) and `repeated_prompts` (exact
 prompt clusters, same object shape as `patterns.near_duplicate_prompts` plus `len`).
 
+## Levers (`scan.json` → `levers`, computed by `scripts/scan_levers.py`)
+
+Fixed thresholds over the finished summary, so the same data gives the same rows on every run.
+Each row: `id`, `population`, `feature` (the Claude Code feature that removes the pattern),
+`evidence` (the keys and values that crossed the threshold), `threshold` (the rule as text,
+marked heuristic), `docs` (a page `docs_fetch.sh` fetches). An empty list means nothing crossed.
+
+| id | population | fires when | feature | brief |
+|---|---|---|---|---|
+| `headless_bare` | headless | `sessions >= 50` and `first_request_tokens_median >= 5000` | `claude -p --bare` plus the flags that load what the run needs | A |
+| `stop_hook` | interactive | `patterns.nudge_prompts + patterns.done_without_verify >= 20` | a `Stop` hook that runs the project's done-check | D |
+
 ## Git-backed quality scripts (brief G)
 
 | Script | Prints | Source |

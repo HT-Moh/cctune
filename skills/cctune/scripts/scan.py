@@ -14,6 +14,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import scan_levers  # noqa: E402
 import scan_lib  # noqa: E402
 
 ROOT = scan_lib.PROJECTS_ROOT
@@ -132,6 +133,7 @@ def print_summary(out):
               f"missed_top={[(m['skill'], m['sessions']) for m in d['missed_skill_sessions'][:5]]} "
               f"mcp_unused={d['mcp_servers_unused'][:8]}")
     print(f"== subagent types (meta): {out['subagent_types_from_meta'][:12]}")
+    print(f"== levers: {[(r['id'], r['evidence']) for r in out.get('levers', [])]}")
     print(f"== files={out['files']} skipped_over_max_mb={out['skipped_over_max_mb']}")
 
 
@@ -168,6 +170,7 @@ def main():
            "subagent_types_from_meta": agent_types_from_meta(want, cutoff)}
     out.update({name: population_summary(p) for name, p in pops.items()})
     out["interactive"].update(subagent_share(pops["interactive"], pops["subagent"]))
+    out["levers"] = scan_levers.evaluate(out)
     if a.out:
         os.makedirs(os.path.dirname(os.path.abspath(a.out)) or ".", mode=0o700, exist_ok=True)
         scan_lib.write_summary(out, a.out)

@@ -93,6 +93,9 @@ match aborts the skill.
    `contains_secret`, structured `checks`, and ops that a script can execute (or a `manual` op
    whose `steps` give one action each with the exact command in `code`). Put `expect` (the value you saw) on every `json_set`/`json_delete`
    under `env`, `permissions`, `hooks`. Check every item in `reference/traps.md` against the draft.
+   Every row in `scan.json` `levers` is an item: its `evidence` is the item's evidence, its
+   `feature` the change, its `docs` the page to verify; drop it only when a trap, a docs page or
+   brief J contradicts it, and say so in the report.
    Before drafting, run `python3 ${CLAUDE_SKILL_DIR}/../cctune-apply/scripts/apply.py --history`:
    the ledger lists every change earlier plans applied, did or dismissed. Do not re-propose an
    applied or done change unless the evidence says it was undone; never re-propose a dismissed
