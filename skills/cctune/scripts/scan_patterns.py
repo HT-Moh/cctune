@@ -5,13 +5,14 @@ file paths, usage, timestamps) and increments a counter. Paths become hashes, co
 become prefixes or named forms, prompts become a normalised hash.
 """
 import collections
-import hashlib
 import re
 
 import scan_commands
+import scan_paths
 import scan_quality
 import scan_sequences
 import scan_turns
+from scan_paths import path_key  # noqa: F401  (re-exported)
 from scan_prompts import PromptCluster, cluster_rows, is_nudge, near_key  # noqa: F401  (re-exported)
 
 EDIT_TOOLS = ("Edit", "Write", "MultiEdit", "NotebookEdit")
@@ -26,10 +27,6 @@ CREDENTIAL_EXAMPLE_RE = re.compile(r"\.(example|sample|template|dist)$")
 TEST_RE = scan_quality.TEST_RE
 DONE_RE = re.compile(r"\b(tests? (now )?(pass|passing|green)|all green|suite (is )?green|implementation complete|"
                      r"done and (verified|tested)|verified (locally|in|with|by))\b", re.I)
-
-def path_key(path):
-    return hashlib.sha256(str(path).encode("utf-8")).hexdigest()[:12]
-
 
 def is_credential_path(path):
     path = str(path)
@@ -74,6 +71,7 @@ class Patterns:
         self.churn_files = 0
         self.quality = scan_quality.Quality()
         self.turns = scan_turns.Turns()
+        self.paths = scan_paths.Paths()
         self.duplicate_reads = 0
         self.duplicate_read_chars = 0
         self.oversized_results = collections.Counter()
@@ -102,6 +100,7 @@ class Session:
         self.last_tool = None
         self.quality = scan_quality.SessionQuality()
         self.turns = scan_turns.SessionTurns()
+        self.paths = scan_paths.SessionPaths()
         self.edits = collections.Counter()
         self.reads = collections.Counter()
         self.verified = False
@@ -109,6 +108,10 @@ class Session:
         self.cache_creation = 0
         self.cache_read = 0
         self.recent_tools = scan_sequences.new_window()
+
+
+def on_event(ev, sess):
+    scan_paths.on_event(ev, sess.paths)
 
 
 def on_user_text(text, sess, pat):
@@ -155,6 +158,7 @@ def on_tool_use(block, sess, pat):
     sess.last_tool = name
     scan_quality.on_tool_use(name, inp, sess.quality, pat.quality)
     scan_turns.on_tool_use(name, sess.turns, pat.turns)
+    scan_paths.on_tool_use(name, inp, sess.paths, pat.paths)
     scan_sequences.record(scan_sequences.token_of(name, inp), sess.recent_tools, sess.name, pat.sequences)
     if name == "Agent":
         sess.agents.add(block.get("id"))
@@ -215,6 +219,7 @@ def finish_session(sess, pat):
     pat.orphaned_agents += len(sess.agents)
     scan_quality.finish_session(sess.quality, pat.quality)
     scan_turns.finish_session(sess.turns, sess.corrected, pat.turns)
+    scan_paths.finish_session(sess.paths, pat.paths)
     total = sess.cache_creation + sess.cache_read
     if total:
         pat.cache_miss_ratio.append(round(sess.cache_creation / total, 3))
@@ -247,4 +252,5 @@ def summary(pat, n_sessions):
         "recurring_tool_sequences": scan_sequences.rows(pat.sequences),
         **scan_quality.summary(pat.quality),
         **scan_turns.summary(pat.turns),
+        **scan_paths.summary(pat.paths),
     }
