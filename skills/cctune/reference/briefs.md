@@ -11,6 +11,9 @@ Launch these in parallel with the Agent tool. Every brief starts with the same h
 
 Then the angle. Paste `reference/schema.md` into each brief.
 
+`scan.json` `levers` rows are settled facts (schema.md, Levers): a brief that owns a row words
+the item from its `evidence`, `feature` and `docs`, and does not re-derive the threshold.
+
 ## Focus
 
 `$focus` picks a subset. F and H run under every focus: F reads the instruction layer
@@ -33,7 +36,9 @@ first-request size, model mix. Repeated first prompts and how many sessions each
 starts. Error classes. Read the launcher code in the repo (grep `claude -p`,
 `--output-format`, `--setting-sources`, `--no-session-persistence`,
 `--max-budget-usd`, `--json-schema`, `--max-turns`, `--bare`) and list the flags
-missing. Estimate tokens saved if the first request dropped to 15k and pair it with outcomes: per
+missing. A `headless_bare` lever row is the `--bare` item: the launcher names what the run
+needs with `--settings`, `--mcp-config` or `--append-system-prompt-file`, because `--bare`
+skips hooks, CLAUDE.md and MCP discovery. Estimate tokens saved if the first request dropped to 15k and pair it with outcomes: per
 run, OK or FAIL from the launcher's exit code or `--json-schema` output where logged, and
 the count of runs that stopped on `--max-turns` or `--max-budget-usd`. Spend with no
 outcome beside it is not a finding.
@@ -83,7 +88,10 @@ each form seen more than 5 times, and say which population issued it. A hook blo
 classifier denial that landed on one of these forms is "prevented", not friction: report
 them apart. Count the hooks in `settings.json` and in every enabled plugin; above 40, name
 the ones that encode a preference rather than a guard. The 3 s wait mean and the 5-count
-form threshold are heuristics, not validated limits; say so in the item.
+form threshold are heuristics, not validated limits; say so in the item. A `stop_hook` lever
+row is a `Stop` hook item: the script exits 0 when `stop_hook_active` is set or the project
+names no check, runs the project's `Check before done` command with a 120 s timeout, and exits 2
+with the failing line otherwise; `hooks_events` in the inventory says whether one exists.
 
 ## E. Subagent economics
 Every `subagents/agent-*.jsonl` in the window, grouped by `agentType` from
