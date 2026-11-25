@@ -13,6 +13,7 @@
 | Skills, agents, commands | `~/.claude/skills/<name>/SKILL.md` (often symlinks), `~/.claude/agents/*.md`, `~/.claude/commands/*.md`; project `.claude/skills`, `.claude/agents` |
 | Plugins | `~/.claude/plugins/cache/<marketplace>/<plugin>/<version>/` with `hooks/hooks.json`, `agents/`, `skills/`, `.mcp.json`; `enabledPlugins` in settings |
 | Project permissions | `<repo>/.claude/settings.json`, `<repo>/.claude/settings.local.json` (allow lists grow here) |
+| Scan cache | `~/.claude/tune/work/cache/<hash>.json`: one record per transcript (counts, hashes, session names; same secret check as `scan.json`), reused while the file's size and mtime, the `scan*.py` sources and the inventory are unchanged and the window covers its first event; `scan.py --no-cache` ignores it, records unused for 90 days are pruned |
 | Secret-bearing copies | `~/.claude/settings.json.*`, `~/.claude/backups/`, `~/.claude/history.jsonl`, `~/.claude/file-history/` |
 
 `<project-dir>` is the working directory with `/` replaced by `-`. Scratchpad sessions

@@ -81,7 +81,7 @@ def test_scan_output_carries_levers_and_prints_them(monkeypatch, tmp_path, capsy
     monkeypatch.setattr(scan, "ROOT", str(tmp_path / "projects"))
     (tmp_path / "projects").mkdir()
     out = tmp_path / "scan.json"
-    monkeypatch.setattr("sys.argv", ["scan.py", "--days", "1", "--out", str(out)])
+    monkeypatch.setattr("sys.argv", ["scan.py", "--days", "1", "--out", str(out), "--no-cache"])
     scan.main()
     assert json.loads(out.read_text())["levers"] == []
     assert "== levers:" in capsys.readouterr().out
