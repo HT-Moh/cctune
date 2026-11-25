@@ -4,6 +4,7 @@
 Read-only. Standard library only. Prints no message bodies, no command arguments and no
 prompt text: commands become `tool subcommand`, prompts become a hash and a length.
 Usage: scan.py --days 30 [--projects a,b] [--out summary.json] [--max-mb 800] [--inventory inventory.json]
+       [--cache-dir DIR | --no-cache]   (a scanned transcript is summarised once; see scan_cache.py)
 """
 import argparse
 import collections
@@ -14,6 +15,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+import scan_cache  # noqa: E402
 import scan_lib  # noqa: E402
 
 ROOT = scan_lib.PROJECTS_ROOT
@@ -142,7 +144,43 @@ def parse_args():
     ap.add_argument("--out", default="")
     ap.add_argument("--max-mb", type=int, default=800)
     ap.add_argument("--inventory", default="", help="inventory.json from skill_inventory.py; enables coverage keys")
+    ap.add_argument("--cache-dir", default=scan_cache.CACHE_DIR, help="per-transcript records; unchanged files are not re-read")
+    ap.add_argument("--no-cache", action="store_true", help="read every transcript again and store nothing")
     return ap.parse_args()
+
+
+def open_cache(a):
+    if a.no_cache:
+        return None
+    version = scan_cache.scanner_version(os.path.dirname(os.path.realpath(__file__)), a.inventory)
+    return scan_cache.Cache(a.cache_dir, version)
+
+
+def record_fetcher(index, max_bytes, cache):
+    """A function giving one transcript's record: from the cache when it still holds, else scanned and stored."""
+    def fetch(path, cutoff):
+        record = cache.lookup(path, cutoff) if cache else None
+        if record is None:
+            name, status, pop = scan_cache.scan_one(path, index, max_bytes, cutoff)
+            record = scan_cache.record_for(path, name, status, pop, cutoff)
+            if cache:
+                cache.store(path, record)
+        return record
+    return fetch
+
+
+def scan_all(files, pops, cutoff, fetch):
+    """Merge each transcript's record into its population; returns how many were skipped for size."""
+    skipped, t0 = 0, time.time()
+    for i, f in enumerate(files):
+        record = fetch(f, cutoff)
+        if record["status"] == "skipped":
+            skipped += 1
+        else:
+            scan_cache.merge_into(pops[record["population"]], record["pop"])
+        if i % 200 == 0:
+            print(f"  scanned {i}/{len(files)} files, {int(time.time() - t0)}s", file=sys.stderr)
+    return skipped
 
 
 def main():
@@ -151,19 +189,12 @@ def main():
     want = [p for p in a.projects.split(",") if p]
     index = scan_lib.scan_coverage.Index.from_file(a.inventory) if a.inventory else None
     pops = {name: scan_lib.Pop(index) for name in ("interactive", "headless", "subagent")}
-
-    def pop_for(entrypoint, path):
-        if "/subagents/" in path:
-            return pops["subagent"]
-        return pops["interactive"] if entrypoint in ("cli", "") else pops["headless"]
-
     files = find_files(want, cutoff)
-    skipped, t0 = 0, time.time()
-    for i, f in enumerate(files):
-        if scan_lib.scan_file(f, pop_for, a.max_mb * 1048576, cutoff) == "skipped":
-            skipped += 1
-        if i % 200 == 0:
-            print(f"  scanned {i}/{len(files)} files, {int(time.time() - t0)}s", file=sys.stderr)
+    cache = open_cache(a)
+    skipped = scan_all(files, pops, cutoff, record_fetcher(index, a.max_mb * 1048576, cache))
+    if cache:
+        pruned = cache.prune()
+        print(f"cache: hits={cache.hits} misses={cache.misses} refused={cache.refused} pruned={pruned} dir={cache.directory}", file=sys.stderr)
     out = {"days": a.days, "files": len(files), "skipped_over_max_mb": skipped,
            "subagent_types_from_meta": agent_types_from_meta(want, cutoff)}
     out.update({name: population_summary(p) for name, p in pops.items()})

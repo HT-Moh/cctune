@@ -180,7 +180,7 @@ def summary(cov):
     if cov.index is None:
         return {"skills_available": 0, "skills_used_distinct": 0, "missed_skill_sessions": [],
                 "mcp_servers_configured": [], "mcp_servers_used": {}, "mcp_servers_unused": []}
-    missed = [{"skill": skill, "sessions": n, "locations": cov.missed_locations[skill]}
+    missed = [{"skill": skill, "sessions": n, "locations": cov.missed_locations[skill][:MAX_LOCATIONS]}
               for skill, n in cov.missed.most_common(TOP_MISSED)]
     used = dict(cov.mcp_used.most_common())
     return {
