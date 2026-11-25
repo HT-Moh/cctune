@@ -48,7 +48,7 @@ python3 ${CLAUDE_SKILL_DIR}/scripts/apply.py --list
 
 - **No arguments**: the table above is the answer. Tell the user, in one short paragraph,
   how to select (ids, `phase1`, `safe`), that `--explain ID` shows why, consumers and
-  dependencies, and what the `Next:` line suggests. Stop.
+  dependencies, and that the numbered `Next steps` are the order to work in. Stop.
 - **`--page`**: run `python3 ${CLAUDE_SKILL_DIR}/scripts/apply.py --page`, open the `page:`
   link with the Artifact tool (`action: open`) and give the user the link.
 - **`--explain ID`, `--rollback ID...`, `--done ID...`, `--undone ID...`,

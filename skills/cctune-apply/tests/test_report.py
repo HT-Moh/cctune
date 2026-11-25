@@ -72,7 +72,7 @@ def test_list_table_has_blocked_by_and_next():
     done = mkitem("P1-01", [{"kind": "json_set", "file": SETTINGS, "path": ["a"], "value": 1}], status="applied")
     text = report.list_table(mkplan(manual, dep, done))
     assert "blocked-by" in text and "P0-01" in text.split("P0-03")[1].splitlines()[0]
-    assert "Next:" in text and "--done P0-01" in text
+    assert "Next steps:" in text and "--done P0-01" in text
 
 
 def test_all_output_is_redacted():
@@ -111,3 +111,34 @@ def test_explain_prints_manual_steps_with_indented_code():
 def test_explain_prints_plain_manual_text_when_no_steps():
     manual = mkitem("P0-01", [{"kind": "manual", "text": "rotate it"}], risk="manual")
     assert "steps:\n  - rotate it" in report.explain(manual, mkplan(manual))
+
+
+def _steps_plan():
+    manual = mkitem("P0-01", [{"kind": "manual", "text": "rotate"}], risk="manual")
+    blocked = mkitem("P0-03", [{"kind": "json_delete", "file": SETTINGS, "path": ["env", "X"]}], risk="review", deps=["P0-01"])
+    safe_a = mkitem("P1-01", [{"kind": "json_set", "file": SETTINGS, "path": ["a"], "value": 1}])
+    safe_b = mkitem("P1-02", [{"kind": "json_set", "file": SETTINGS, "path": ["b"], "value": 1}])
+    review = mkitem("P2-01", [{"kind": "file_append", "file": "~/.claude/CLAUDE.md", "content": "x"}], risk="review")
+    done = mkitem("P1-03", [{"kind": "json_set", "file": SETTINGS, "path": ["c"], "value": 1}], status="applied")
+    return mkplan(manual, blocked, safe_a, safe_b, review, done)
+
+
+def test_next_steps_are_numbered_in_dependency_order_with_real_ids():
+    steps = report.next_steps(_steps_plan())
+    assert [s[:3] for s in steps] == ["1. ", "2. ", "3. ", "4. ", "5. "]
+    assert "P0-01" in steps[0] and "by hand" in steps[0] and "/cctune-apply --done P0-01" in steps[0]
+    assert steps[1].endswith("/cctune-apply --dry-run P1-01 P1-02") and "Preview" in steps[1]
+    assert "/cctune-apply P1-01 P1-02 --expect <digest from step 2>" in steps[2]
+    assert "P2-01" in steps[3] and "diff" in steps[3] and "/cctune-apply --dry-run P2-01" in steps[3]
+    assert steps[4].startswith("5. After P0-01: P0-03")
+
+
+def test_next_steps_say_when_nothing_is_open():
+    done = mkitem("P1-03", [{"kind": "json_set", "file": SETTINGS, "path": ["c"], "value": 1}], status="applied")
+    assert report.next_steps(mkplan(done)) == ["1. Nothing open: every item is applied, done or dismissed. Run /cctune for a new plan."]
+
+
+def test_list_table_prints_the_numbered_steps_and_no_placeholder_ids():
+    text = report.list_table(_steps_plan())
+    assert "Next steps:" in text and "1. " in text and "--dry-run P1-01 P1-02" in text
+    assert "P1-01 P1-03" not in text and "Next:" not in text.replace("Next steps:", "")

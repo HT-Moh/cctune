@@ -153,14 +153,46 @@ def _blocked_by(item: dict, plan: dict) -> str:
     return ",".join(selection.blockers(item, plan, set(), set()))
 
 
-def _next_line(plan: dict) -> str:
-    for it in plan["items"]:
-        if it.get("status", "proposed") != "proposed" or _blocked_by(it, plan):
-            continue
-        if it.get("risk") == "manual":
-            return f"Next: {it['id']} is a manual step; do it, then /cctune-apply --done {it['id']}"
-        return f"Next: /cctune-apply --dry-run {it['id']}"
-    return "Next: nothing open; every item is applied, done or blocked"
+def _open_items(plan: dict) -> list:
+    return [it for it in plan["items"] if it.get("status", "proposed") == "proposed"]
+
+
+def _manual_steps(free: list) -> list[str]:
+    return [f"Do {it['id']} by hand ({it.get('title', '')}), then record it: /cctune-apply --done {it['id']}"
+            for it in free if it.get("risk") == "manual"]
+
+
+def _apply_steps(free: list, first_number: int) -> list[str]:
+    safe = [it["id"] for it in free if it.get("risk") != "manual" and effective_risk(it) == "safe"]
+    review = [it["id"] for it in free if it.get("risk") != "manual" and effective_risk(it) == "review"]
+    out = []
+    if safe:
+        out.append(f"Preview the safe items: /cctune-apply --dry-run {' '.join(safe)}")
+        out.append(f"Apply what you read: /cctune-apply {' '.join(safe)} --expect <digest from step {first_number}>")
+    if review:
+        out.append(f"Read the diff for {' '.join(review)}: /cctune-apply --dry-run {' '.join(review)}; "
+                   "tick the ones you accept when asked")
+    return out
+
+
+def _blocked_steps(blocked: list, plan: dict) -> list[str]:
+    out = [f"After {_blocked_by(it, plan).replace(',', ', ')}: {it['id']} ({it.get('title', '')})" for it in blocked[:5]]
+    if len(blocked) > 5:
+        out.append(f"After their prerequisites: {len(blocked) - 5} more blocked items; see the table")
+    return out
+
+
+def next_steps(plan: dict) -> list[str]:
+    """Numbered steps in dependency order: manual work first, then preview and apply, then what waits."""
+    open_items = _open_items(plan)
+    if not open_items:
+        return ["1. Nothing open: every item is applied, done or dismissed. Run /cctune for a new plan."]
+    free = [it for it in open_items if not _blocked_by(it, plan)]
+    blocked = [it for it in open_items if _blocked_by(it, plan)]
+    lines = _manual_steps(free)
+    lines += _apply_steps(free, len(lines) + 1)
+    lines += _blocked_steps(blocked, plan)
+    return [f"{n}. {line}" for n, line in enumerate(lines, 1)]
 
 
 def page_lines(plan: dict, plan_path) -> str:
@@ -188,9 +220,8 @@ def list_table(plan: dict) -> str:
     for it in plan["items"]:
         lines.append(f"{it['id']:<6} {it.get('phase', '?'):<2} {effective_risk(it):<7} {it.get('status', 'proposed'):<11} "
                      f"{_blocked_by(it, plan):<12} {it.get('title', '')[:60]}")
-    lines += ["", _next_line(plan),
-              "apply:  /cctune-apply --dry-run P1-01 P1-03   then   /cctune-apply P1-01 P1-03 --expect <digest>",
-              "manual: /cctune-apply --done P0-01      undo: /cctune-apply --rollback P1-03"]
+    lines += ["", "Next steps:", *next_steps(plan), "",
+              "Undo one applied item: /cctune-apply --rollback <id>.  Why an item exists: /cctune-apply --explain <id>."]
     if plan.get("page_url"):
         lines.append(f"page: {plan['page_url']}")
     return redact("\n".join(lines))
