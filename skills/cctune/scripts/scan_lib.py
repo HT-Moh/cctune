@@ -244,6 +244,7 @@ def _parse(raw, pop):
 
 
 def _dispatch(ev, pop, sess, when):
+    scan_patterns.on_event(ev, sess)
     kind = ev.get("type")
     if kind == "system" and ev.get("subtype") == "compact_boundary":
         _record_compaction(ev, pop)
