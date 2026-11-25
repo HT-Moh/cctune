@@ -26,6 +26,7 @@ Context and cost
 - `/compact <focus>`; a `# Compact instructions` section in CLAUDE.md.
 - `/clear <name>`, `/rename`, `claude --resume <name>`, `--fork-session`, `/branch`.
 - `/btw` (side question, not kept), `/rewind` partial summaries, `/usage`, `/context`, `/doctor prompt-audit`.
+- `/teleport` and `claude --teleport` (pull a cloud session into the terminal), `/remote-control` (drive a local session from phone or web), `/voice`: graded from `interactive-mode` and `cli-reference`; a transcript records a typed slash command as `<command-name>/x</command-name>`.
 - `claudeMdExcludes`; `.claude/rules/*.md` with `paths:` (not kept across compaction; must-keep rules go in root CLAUDE.md); CLAUDE.md under ~200 lines; procedures in skills.
 - Skill budget: descriptions capped at 1,536 chars each, listing budget shared; `skillOverrides` (`off`, `name-only`, `user-invocable-only`); `disable-model-invocation: true` removes the description from context.
 - MCP: `/mcp` toggles, `disabledMcpjsonServers`, `MAX_MCP_OUTPUT_TOKENS`, tool search is on by default; prefer CLIs (`gh`, `kubectl`) over MCP servers that add tool listings.
@@ -35,6 +36,7 @@ Permissions
 - Auto mode keeps narrow allow rules, drops `Bash(*)`, wildcarded interpreters, `Agent`, `Monitor` rules. Deny applies in every mode. `ask` fires on any subcommand.
 - Rule matching: whole command text, `*` wildcard, compound commands split on `&&`, `||`, `;`, `|`, `|&`, `&`, newline; every part must be allowed; a `*` before the subcommand is warned against (`Bash(kubectl -n * get *)` is wrong, write one rule per namespace).
 - `/permissions` "Recently blocked", `/fewer-permission-prompts`, `/sandbox`, `autoMode.allow`.
+- `permissions.additionalDirectories` in settings, or `--add-dir <dir>` / `/add-dir` per session: a second repository the session may read and edit under its own rules; `patterns.sessions_outside_cwd` in `scan.json` counts the sessions that reached one without it.
 
 Hooks
 - Events: `SessionStart` (matchers `startup|resume|clear|compact|fork`), `UserPromptSubmit`, `PreToolUse` (exit 2 blocks; `updatedInput` rewrites), `PostToolUse`, `Stop` (`stop_hook_active`, block cap 8, `CLAUDE_CODE_STOP_HOOK_BLOCK_CAP`), `SubagentStop`, `PreCompact`/`PostCompact`, `Notification`, `FileChanged`, `WorktreeCreate`.
@@ -46,6 +48,7 @@ Skills and agents
 - Body: `$ARGUMENTS`, `$0`, `$name`, `${CLAUDE_SKILL_DIR}`, `${CLAUDE_PROJECT_DIR}`, `${CLAUDE_SESSION_ID}`; inline `` !`cmd` `` and ```` ```! ```` blocks run before Claude reads the skill, a non-zero exit aborts the skill (append `|| true`); keep SKILL.md under 500 lines, reference files beside it.
 - Agent frontmatter: `model`, `effort`, `tools`, `disallowedTools`, `maxTurns`, `isolation: worktree`, `background`, `skills`, `memory`, `omitClaudeMd`. Model precedence: per-call `model` > frontmatter > `CLAUDE_CODE_SUBAGENT_MODEL` > main model (force with `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1`). User agents beat plugin agents of the same name. Subagents can spawn subagents three layers deep.
 - Built-ins: `Explore`, `Plan`, `general-purpose`; `Explore`/`Plan` start without CLAUDE.md.
+- `claude --agent <name>` (and `claude -p --agent <name>`): start the session as an agent from `.claude/agents/` or `~/.claude/agents/`, with its system prompt, `tools` restriction and `model`; the shape for a headless pipeline that pastes the same role text into every run.
 
 Headless and automation
 - `claude -p` flags: `--output-format json|stream-json`, `--json-schema`, `--bare`, `--max-turns`, `--max-budget-usd`, `--no-session-persistence`, `--setting-sources ""`, `--permission-mode dontAsk`, `--permission-prompts none`, `--allowedTools`, `--append-system-prompt-file`, `--append-subagent-system-prompt`; result carries `total_cost_usd` and `session_id`; exit codes.
