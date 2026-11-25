@@ -68,6 +68,13 @@ def session_name(path):
     return os.sep.join(parts[-keep:])
 
 
+def project_dir_name(path):
+    """The directory directly under `~/.claude/projects`: the working directory with `/` as `-`."""
+    parts = path.split(os.sep)
+    keep = 3 if "subagents" in parts[-2:-1] else 1
+    return parts[-keep - 1] if len(parts) > keep else ""
+
+
 class Pop:
     """One population: interactive, headless or subagent. `inventory` is a `scan_coverage.Index` or None."""
 
@@ -212,7 +219,7 @@ def scan_file(path, pop_for, max_bytes, cutoff=0.0):
     if os.path.getsize(path) > max_bytes:
         return "skipped"
     pop = pop_for(_entrypoint(path), path)
-    sess = scan_patterns.Session(session_name(path))
+    sess = scan_patterns.Session(session_name(path), project_dir_name(path))
     pop.sessions.add(sess.name)
     pop.coverage.begin_session(path)
     with open(path, "r", encoding="utf-8", errors="replace") as fh:
@@ -244,7 +251,7 @@ def _parse(raw, pop):
 
 
 def _dispatch(ev, pop, sess, when):
-    scan_patterns.on_event(ev, sess)
+    scan_patterns.on_event(ev, sess, when)
     kind = ev.get("type")
     if kind == "system" and ev.get("subtype") == "compact_boundary":
         _record_compaction(ev, pop)
