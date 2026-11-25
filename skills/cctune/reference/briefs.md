@@ -135,6 +135,12 @@ a repeated prompt as typing and consistency, never as a better outcome: slash co
 measured no gain over plain prompting. A cluster whose sessions mostly failed becomes a
 CLAUDE.md lesson ("when X, do not Y"), never a skill. Report cluster size (`sessions`,
 `occurrences`), the proposed name and the destination path.
+A headless `repeated_prompts` cluster whose samples open with the same role or rules text is a
+`.claude/agents/<name>.md` candidate: the preamble becomes the agent body, `tools` restricts it,
+and the launcher runs `claude -p --agent <name>`; the item names the agent file, not the prompt.
+A cluster of interactive prompts that only ask the state of a PR or say `merged` is a `/loop
+<interval> <prompt>` item: the prompt runs `gh pr view <n> --json state`, acts on `MERGED` and
+stops; the item carries the exact `/loop` line as a manual step.
 
 ## G. Quality
 Read-only `gh run list --limit 200`, `gh pr list --state all --limit 100`,

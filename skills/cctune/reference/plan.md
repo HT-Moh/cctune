@@ -133,5 +133,13 @@ the `claude mcp add/remove` command) and system directories.
   provider" and one `review` item with `json_delete` that `depends_on` it.
 - A hook: `json_upsert` into `hooks.<Event>` with `match: {"matcher": "Bash"}` replaces that
   entry and keeps the others; never `json_set` the whole list.
+- A generated hook script (`file_create` under `~/.claude/hooks/`, then `json_upsert` into
+  `hooks.<Event>`): exits 0 at once when stdin JSON has `stop_hook_active: true` (a `Stop` hook
+  that blocks again would loop to the block cap), when the project names no check (no `Check
+  before done` block in the cwd's `CLAUDE.md`), or when the check command is missing; runs the
+  check with `timeout 120`; on failure exits 2 with the failing line on stderr, nothing else;
+  reads `cwd` from stdin, never `$CLAUDE_PROJECT_DIR` (wrong inside a worktree); sets the hook
+  entry's `timeout` to 150. The item is `review`, `consumers` lists the hook file, and a
+  `post` check `file_mode {file, mode: "700"}` guards the script.
 - Anything that needs a running `claude` command (`claude mcp remove x`, `claude plugin
   disable y`): `manual` op with the exact command.
