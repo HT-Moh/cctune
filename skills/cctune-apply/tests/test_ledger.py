@@ -91,3 +91,23 @@ def test_functions_are_short():
     import inspect
     for name, fn in inspect.getmembers(ledger, inspect.isfunction):
         assert len(inspect.getsource(fn).splitlines()) <= 30, name
+
+
+def test_record_keeps_the_metrics_baseline_and_baselines_lists_settled_items(tmp_home):
+    metrics = {"population": "interactive", "keys": {"patterns.nudge_prompts": 72}}
+    applied = _item(status="applied", metrics=metrics)
+    proposed = _item("P1-02", ("b",), metrics=metrics)
+    dismissed = _item("P1-03", ("c",), status="dismissed", metrics=metrics)
+    plain = _item("P1-04", ("d",), status="applied")
+    ledger.record([applied, proposed, dismissed, plain], {}, run="2026-11-14-59a7.json")
+    rows = ledger.baselines()
+    assert [(r["id"], r["status"]) for r in rows] == [("P1-01", "applied")]
+    assert rows[0]["metrics"] == metrics and rows[0]["run"] == "2026-11-14-59a7.json" and rows[0]["t"]
+    assert "metrics" not in ledger.load_state()[fp.fingerprint(applied)]
+
+
+def test_baselines_follow_the_last_event_per_item(tmp_home):
+    metrics = {"population": "interactive", "keys": {"patterns.nudge_prompts": 72}}
+    ledger.record([_item(status="applied", metrics=metrics)], {}, run="a.json")
+    ledger.record([_item(status="rolled_back", metrics=metrics)], {fp.fingerprint(_item()): {"status": "applied"}}, run="a.json")
+    assert ledger.baselines() == []
