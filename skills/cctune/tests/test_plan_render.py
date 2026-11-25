@@ -145,3 +145,58 @@ def test_main_overlays_ledger_state_and_reports_carried_items(tmp_path, monkeypa
 def test_main_has_no_latest_flags():
     import inspect
     assert "--latest" not in inspect.getsource(plan_render)
+
+
+def _order(text, *needles):
+    positions = [text.index(n) for n in needles]
+    return positions == sorted(positions)
+
+
+def test_md_item_reads_changes_notice_why_run_undo_in_that_order():
+    item = mkitem("P1-01", [{"kind": "json_set", "file": SETTINGS, "path": ["a"], "value": 1}], impact="fewer prompts")
+    md = plan_render.render_md(mkplan(item))
+    block = md.split("### P1-01", 1)[1]
+    assert _order(block, "- Changes:", "- Op: json_set", "- You will notice: fewer prompts", "takes effect next-session",
+                  "- Why: because", "- Evidence: e", "- Run: /cctune-apply --dry-run P1-01", "/cctune-apply P1-01 --expect",
+                  "- Undo: /cctune-apply --rollback P1-01", "- Docs:")
+    assert "- Impact:" not in block and "- Reversible:" not in block
+
+
+def test_md_manual_item_runs_by_hand_and_has_no_undo():
+    manual = mkitem("P0-02", [{"kind": "manual", "text": "one secrets file", "steps": STEPS}], risk="manual")
+    block = plan_render.render_md(mkplan(manual)).split("### P0-02", 1)[1]
+    assert "- Run: do the steps under Changes, then record it: /cctune-apply --done P0-02" in block
+    assert "- Undo:" not in block and "- Changes:" in block
+
+
+def test_md_ends_with_the_numbered_next_steps():
+    manual = mkitem("P0-01", [{"kind": "manual", "text": "rotate"}], risk="manual")
+    safe = mkitem("P1-01", [{"kind": "json_set", "file": SETTINGS, "path": ["a"], "value": 1}])
+    md = plan_render.render_md(mkplan(manual, safe))
+    tail = md.split("## Next steps", 1)[1]
+    assert "1. Do P0-01 by hand" in tail and "2. Preview the safe items: /cctune-apply --dry-run P1-01" in tail
+    assert "## Apply" not in md and "P1-02" not in md
+
+
+def test_html_embeds_next_steps_and_the_template_lists_them():
+    manual = mkitem("P0-01", [{"kind": "manual", "text": "rotate"}], risk="manual")
+    html = plan_render.render_html(mkplan(manual), rendered_at="r", plan_mtime="m")
+    assert '"next_steps": ["1. Do P0-01 by hand' in html
+    tpl = TEMPLATE.read_text(encoding="utf-8")
+    assert 'id="next"' in tpl and "plan.next_steps" in tpl
+
+
+def test_template_detail_reads_changes_notice_why_run_undo_in_that_order():
+    tpl = TEMPLATE.read_text(encoding="utf-8")
+    detail = tpl.split("function detail(it)", 1)[1].split("function chipsFor", 1)[0]
+    assert _order(detail, '"Changes"', '"You will notice"', '"Why"', '"Evidence"', '"Run"', '"Undo"', '"Docs"')
+    assert '"Impact"' not in detail and '"Rollback"' not in detail and '"When done"' not in detail
+
+
+def test_md_settled_item_runs_nothing_and_keeps_undo_only_when_applied():
+    applied = mkitem("P1-01", [{"kind": "json_set", "file": SETTINGS, "path": ["a"], "value": 1}], status="applied")
+    dismissed = mkitem("P1-02", [{"kind": "json_set", "file": SETTINGS, "path": ["b"], "value": 1}], status="dismissed")
+    md = plan_render.render_md(mkplan(applied, dismissed))
+    first, second = md.split("### P1-01", 1)[1].split("### P1-02", 1)
+    assert "- Run: nothing, this item is applied" in first and "- Undo: /cctune-apply --rollback P1-01" in first
+    assert "- Run: nothing, this item is dismissed" in second and "- Undo:" not in second and "--dry-run" not in second

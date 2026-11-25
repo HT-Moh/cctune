@@ -25,6 +25,8 @@ h2 small { color: var(--muted); font-weight: 400; }
 p { margin: 0; max-width: 68ch; }
 .stats { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 10px; font-size: 13px; color: var(--muted); }
 .stats b { color: var(--fg); font-variant-numeric: tabular-nums; }
+.next { margin: 0; padding: 12px 14px 12px 34px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; display: grid; gap: 6px; font-size: 14px; }
+.next li { overflow-wrap: anywhere; }
 .phase { display: grid; gap: 10px; }
 .phase-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
 .phase-head button { font: 500 12px var(--font); color: var(--accent); background: none; border: 0; padding: 0; cursor: pointer; }
@@ -78,6 +80,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
     <div class="stats" id="stats"></div>
     <p class="hint" id="stale"></p>
   </header>
+  <ol class="next" id="next"></ol>
   <div id="phases"></div>
 </main>
 <footer>
@@ -134,18 +137,22 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
     node.appendChild(ol); return node;
   }
   function checkLines(it) { return (it.checks || []).map(function (c) { return c.phase + ": " + c.kind + " " + (c.text || c.file || (c.argv || []).join(" ")); }).join("\n"); }
+  function runText(it) {
+    if (closed(it)) return "nothing, this item is " + it.status;
+    if (it.risk === "manual") return "do the steps under Changes, then record it: /cctune-apply --done " + it.id;
+    return "/cctune-apply --dry-run " + it.id + ", then /cctune-apply " + it.id + " --expect <digest from the preview>";
+  }
   function detail(it) {
     var d = el("div", "detail"); var dl = el("dl");
-    var rows = [["Why", it.why], ["Evidence", it.evidence], ["Impact", it.impact],
+    dl.appendChild(el("dt", null, "Changes"));
+    var changes = el("dd"); var ops = el("div", "ops"); (it.ops || []).forEach(function (op) { ops.appendChild(opNode(op)); }); changes.appendChild(ops); dl.appendChild(changes);
+    var rows = [["You will notice", it.impact + "; takes effect " + it.takes_effect], ["Why", it.why], ["Evidence", it.evidence],
+      ["Run", runText(it)], ["Undo", it.risk !== "manual" && (!closed(it) || it.status === "applied") ? "/cctune-apply --rollback " + it.id + " (reversible: " + it.reversible + ")" : ""],
       ["Consumers", (it.consumers || []).join(", ")], ["Blocked by", blockers(it).join(", ")],
-      ["Depends on", (it.depends_on || []).join(", ")], ["Reversible", it.reversible + "; takes effect " + it.takes_effect],
-      ["Checks", checkLines(it)]];
-    if (it.risk !== "manual") rows.push(["Rollback", "/cctune-apply --rollback " + it.id]);
-    else rows.push(["When done", "/cctune-apply --done " + it.id]);
+      ["Depends on", (it.depends_on || []).join(", ")], ["Checks", checkLines(it)]];
     rows.forEach(function (pair) { if (!pair[1]) return; dl.appendChild(el("dt", null, pair[0])); var dd = el("dd", null, pair[1]); dd.style.whiteSpace = "pre-wrap"; dl.appendChild(dd); });
     if (it.docs) { dl.appendChild(el("dt", null, "Docs")); var dd = el("dd"); var a = el("a", null, it.docs); a.href = it.docs; a.target = "_blank"; a.rel = "noopener"; dd.appendChild(a); dl.appendChild(dd); }
     d.appendChild(dl);
-    var ops = el("div", "ops"); (it.ops || []).forEach(function (op) { ops.appendChild(opNode(op)); }); d.appendChild(ops);
     return d;
   }
   function chipsFor(it) {
@@ -211,6 +218,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); ou
    ["manual", counts.manual, "only you can do it; record it with --done"],
    ["done", counts.closed, "applied or recorded with --done"]]
     .forEach(function (row) { stats.appendChild(stat(row[0], row[1], row[2])); });
+  var next = document.getElementById("next"); (plan.next_steps || []).forEach(function (step) { next.appendChild(el("li", null, step.replace(/^\d+\. /, ""))); });
   document.getElementById("stale").textContent = "Rendered " + (planEl.getAttribute("data-rendered-at") || "?") + ". Statuses do not refresh here: after applying, run /cctune-apply --list.";
   render();
 })();

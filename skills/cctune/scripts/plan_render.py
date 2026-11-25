@@ -24,6 +24,7 @@ from plan_migrate import migrate_v1  # noqa: E402
 from plan_risk import effective_risk  # noqa: E402
 from plan_schema import PHASES, RISKS, validate  # noqa: E402
 from redact import redact  # noqa: E402
+from report import next_steps  # noqa: E402
 
 TEMPLATE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "templates", "plan.html")
 TIME_FMT = "%Y-%m-%d %H:%M"
@@ -48,12 +49,26 @@ def _risk_label(item):
     return f"`{effective}`" + (f" (declared {declared})" if declared != effective else "")
 
 
+def _run_lines(item):
+    """How to act on this one item, and how to take it back."""
+    status = item.get("status", "proposed")
+    if status in CARRIED:
+        undo = [f"- Undo: /cctune-apply --rollback {item['id']}"] if status == "applied" else []
+        return [f"- Run: nothing, this item is {status}", *undo]
+    if item.get("risk") == "manual":
+        return [f"- Run: do the steps under Changes, then record it: /cctune-apply --done {item['id']}"]
+    return [f"- Run: /cctune-apply --dry-run {item['id']}, then /cctune-apply {item['id']} --expect <digest from the preview>",
+            f"- Undo: /cctune-apply --rollback {item['id']} (reversible: {item.get('reversible', 'full')})"]
+
+
 def _item_md(item, plan):
     status = item.get("status", "proposed")
     out = [f"\n### {item['id']} {item['title']}  {_risk_label(item)}" + (f"  status: {status}" if status != "proposed" else ""),
-           f"- Why: {item['why']}", f"- Evidence: {item['evidence']}", f"- Impact: {item['impact']}",
-           f"- Reversible: {item.get('reversible', 'full')}; takes effect: {item.get('takes_effect', 'next-session')}",
-           f"- Docs: {item['docs'] or 'UNVERIFIED'}"]
+           "- Changes:"]
+    for op in item["ops"]:
+        out += op_md(op)
+    out += [f"- You will notice: {item['impact']}; takes effect {item.get('takes_effect', 'next-session')}",
+            f"- Why: {item['why']}", f"- Evidence: {item['evidence']}", *_run_lines(item)]
     if item.get("consumers"):
         out.append(f"- Consumers: {', '.join(item['consumers'])}")
     blockers = blockers_of(item, plan)
@@ -63,8 +78,7 @@ def _item_md(item, plan):
         out.append(f"- Depends on: {', '.join(item['depends_on'])}")
     for c in item.get("checks") or []:
         out.append(f"- Checks: {c.get('phase')} {c.get('kind')} {c.get('text') or c.get('file') or ' '.join(c.get('argv') or [])}")
-    for op in item["ops"]:
-        out += op_md(op)
+    out.append(f"- Docs: {item['docs'] or 'UNVERIFIED'}")
     return out
 
 
@@ -78,12 +92,8 @@ def render_md(plan):
         for it in (i for i in plan["items"] if i["phase"] == ph):
             out += _item_md(it, plan)
         out.append("")
-    safe = [it["id"] for it in plan["items"] if effective_risk(it) == "safe"][:3]
-    manual = [it["id"] for it in plan["items"] if it["risk"] == "manual"][:2]
-    out += ["## Apply", "", "1. Preview: `/cctune-apply --dry-run " + " ".join(safe) + "`",
-            "2. Apply what you read: `/cctune-apply " + " ".join(safe) + " --expect <digest from the dry run>`",
-            "3. Manual items, once done: `/cctune-apply --done " + " ".join(manual) + "`",
-            "", "`/cctune-apply --rollback P1-02` undoes one item; `--explain P1-02` shows why, consumers and checks.", ""]
+    out += ["## Next steps", "", *next_steps(plan), "",
+            "Undo one applied item: `/cctune-apply --rollback <id>`. Why an item exists: `/cctune-apply --explain <id>`.", ""]
     return redact("\n".join(out))
 
 
@@ -111,7 +121,7 @@ def op_line(op):
 def render_html(plan, rendered_at, plan_mtime):
     with open(TEMPLATE, encoding="utf-8") as fh:
         tpl = fh.read()
-    shown = dict(plan, items=[dict(it, risk_effective=effective_risk(it)) for it in plan["items"]])
+    shown = dict(plan, items=[dict(it, risk_effective=effective_risk(it)) for it in plan["items"]], next_steps=next_steps(plan))
     safe_json = json.dumps(shown, ensure_ascii=False).replace("<", "\\u003c")
     return (tpl.replace("{{PLAN_JSON}}", safe_json)
             .replace("{{RENDERED_AT}}", html.escape(rendered_at, quote=True))
