@@ -76,6 +76,12 @@ ledger too; `page_url` in a plan is legacy input the first load imports.
   `permissions`, `hooks`, `statusLine`, `mcpServers` or `apiKeyHelper`; when a file is under
   `~/.claude/hooks/`, inside a `skills/` dir, or named `CLAUDE.md`, `AGENTS.md`, `RULES.md`;
   or when `reversible` is not `full`. Declare the risk you mean; the floor still applies.
+- `metrics` (optional): `{"population": "interactive"|"headless"|"subagent", "keys": {"<scan.json key>": <number>}}`,
+  the summary keys whose values justified the item, as read in this run (dotted path inside the
+  population summary, for example `patterns.nudge_prompts`). A `levers` row gives them directly:
+  its `population` and `evidence`. `cctune-apply` keeps the values with the applied or done
+  event; `scripts/metrics_delta.py --scan <scan.json>` prints before, after and change on the
+  next audit. Every item whose evidence cites a scan key carries `metrics`.
 - `docs`: the page fetched in this run that documents the setting. Empty only when the
   item is `UNVERIFIED`, and then say so in `impact`.
 - `ops`: executed in order; each sees the result of the previous one. All are idempotent.

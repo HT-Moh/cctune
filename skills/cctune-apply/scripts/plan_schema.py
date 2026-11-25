@@ -6,6 +6,7 @@ never drift. Standard library only.
 import re
 
 from plan_credentials import _literal_credentials
+from plan_metrics import validate_metrics
 from redact import has_secret
 
 SCHEMA = 2
@@ -109,6 +110,7 @@ def _validate_item(it: dict, all_ids: set[str]) -> list[str]:
     if not docs and "UNVERIFIED" not in str(it.get("impact", "")):
         errs.append(f"{tag}: docs empty requires UNVERIFIED in impact")
     errs += _validate_item_lists(it, tag, all_ids)
+    errs += validate_metrics(it, tag)
     errs += _validate_ops(it, tag)
     errs += [e for c in it.get("checks") or [] for e in _validate_check(c, tag)]
     return errs

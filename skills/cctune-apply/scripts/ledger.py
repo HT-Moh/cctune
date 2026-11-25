@@ -95,10 +95,17 @@ def record(items: list, before: dict, run: str) -> int:
         key = fingerprint(it)
         snap = snapshot(it)
         if before.get(key, {"status": "proposed"}) != snap:
-            events.append({"t": _now(), "fp": key, "id": it.get("id"), "title": it.get("title", ""), "run": run, **snap})
+            baseline = {"metrics": it["metrics"]} if isinstance(it.get("metrics"), dict) else {}
+            events.append({"t": _now(), "fp": key, "id": it.get("id"), "title": it.get("title", ""), "run": run, **snap, **baseline})
     if events:
         _append(events)
     return len(events)
+
+
+def baselines() -> list:
+    """Last event per item that is applied or done and carries `metrics`: the values the item targeted."""
+    return [{"id": ev.get("id"), "status": ev["status"], "run": ev.get("run"), "t": ev.get("t"), "metrics": ev["metrics"]}
+            for ev in _last_by_fp().values() if ev.get("status") in ("applied", "done") and isinstance(ev.get("metrics"), dict)]
 
 
 def set_page_url(url: str) -> None:

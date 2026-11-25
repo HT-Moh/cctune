@@ -306,3 +306,14 @@ def test_validate_rejects_bad_file_mode_check(mode):
 def test_validate_accepts_octal_file_mode_check(mode):
     check = {"phase": "post", "kind": "file_mode", "file": SETTINGS, "mode": mode}
     assert plan_schema.validate(plan(item(checks=[check]))) == []
+
+
+def test_metrics_is_optional_and_names_a_population_and_numeric_keys():
+    good = item(metrics={"population": "interactive", "keys": {"patterns.nudge_prompts": 72, "cache_read_tokens_M": 3.5}})
+    assert plan_schema.validate(plan(good)) == []
+    bad_population = item(metrics={"population": "everyone", "keys": {"a": 1}})
+    assert any("metrics.population" in e for e in plan_schema.validate(plan(bad_population)))
+    bad_value = item(metrics={"population": "headless", "keys": {"a": "many"}})
+    assert any("metrics.keys" in e for e in plan_schema.validate(plan(bad_value)))
+    not_an_object = item(metrics=[1, 2])
+    assert any("metrics" in e for e in plan_schema.validate(plan(not_an_object)))
