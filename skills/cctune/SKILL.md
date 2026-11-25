@@ -22,7 +22,8 @@ automation). Session: `${CLAUDE_SESSION_ID}` (this session's id; the work dir is
 
 1. **Read-only, with one exception.** Never change `~/.claude/*`, `~/.claude.json`, any
    `CLAUDE.md`, hook, skill, agent or project file. Never deploy, push, merge or run
-   `claude mcp add`. Write only under `~/.claude/tune/`: the plan, its renders, and the work dir
+   `claude mcp add`. Write only under `~/.claude/tune/`: the plan, its renders, the scan cache
+   `~/.claude/tune/work/cache/` and the work dir
    `~/.claude/tune/work/${CLAUDE_SESSION_ID}` (shell variables do not survive between Bash calls, so use that literal path). The user applies changes later with `/cctune-apply`.
 2. **No secret values** in any output or file. Key names and file paths only.
 3. **Evidence first.** Every finding: count + path + method. Every recommended
@@ -72,6 +73,8 @@ match aborts the skill.
    (`--projects` takes absolute repo paths, comma-separated: add the checkouts of the other
    audited projects when you know them; it reads their `.claude/skills` and `.mcp.json`).
    Then `python3 ${CLAUDE_SKILL_DIR}/scripts/scan.py --days $days --projects "$projects" --inventory ~/.claude/tune/work/${CLAUDE_SESSION_ID}/inventory.json --out ~/.claude/tune/work/${CLAUDE_SESSION_ID}/scan.json`.
+   The first run over a window reads every transcript; later runs read only new or grown files
+   (`cache:` line on stderr; `--no-cache` forces a full read).
    It prints per-population totals, denials, hook blocks, waits, slow commands,
    prompt clusters (`repeated_prompts`, `patterns.near_duplicate_prompts`: hash, sessions,
    occurrences and up to 5 session files, never the text; brief F reads samples with

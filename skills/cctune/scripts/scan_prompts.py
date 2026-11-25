@@ -57,5 +57,5 @@ class PromptCluster:
 def cluster_rows(clusters):
     """JSON-ready rows for the recurring clusters, most occurrences first, top 15."""
     kept = sorted(((c.occurrences, k) for k, c in clusters.items() if c.is_recurring()), reverse=True)
-    return [{"hash": k, "sessions": len(clusters[k].sessions), "occurrences": n, "files": list(clusters[k].files)}
+    return [{"hash": k, "sessions": len(clusters[k].sessions), "occurrences": n, "files": list(clusters[k].files)[:CLUSTER_FILES_KEPT]}
             for n, k in kept[:CLUSTER_ROWS_KEPT]]
