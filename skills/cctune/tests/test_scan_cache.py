@@ -54,6 +54,19 @@ def test_merged_records_equal_one_direct_scan(tmp_path):
     assert _summary(merged)["patterns"]["nudge_prompts"] == 3
 
 
+def test_a_message_copied_into_another_file_counts_once(tmp_path):
+    shared = tool_use("s", "Read", {"file_path": "/r/y.py"}, 11, msg_id="copied", usage=USAGE)
+    files = [_write(tmp_path, f"p/{n}.jsonl", _events(n) + [shared]) for n in ("one", "resumed")]
+    direct = scan_lib.Pop(_index())
+    for f in files:
+        scan_lib.scan_file(f, lambda e, p: direct, 10 ** 9, cutoff=0)
+    merged = scan_lib.Pop(_index())
+    for f in files:
+        _, _, pop = scan_cache.scan_one(f, _index(), 10 ** 9, cutoff=0)
+        scan_cache.merge_into(merged, json.loads(json.dumps(scan_cache.encode(pop))))
+    assert merged.fresh == direct.fresh == 3 * 160
+    assert _summary(merged) == _summary(direct)
+
 def test_encode_leaves_out_index_message_ids_and_private_state(tmp_path):
     f = _write(tmp_path, "p/one.jsonl", _events("one"))
     _, _, pop = scan_cache.scan_one(f, _index(), 10 ** 9, cutoff=0)

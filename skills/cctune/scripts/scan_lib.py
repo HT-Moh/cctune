@@ -68,15 +68,26 @@ def session_name(path):
     return os.sep.join(parts[-keep:])
 
 
+class UsageLedger(dict):
+    """Usage per assistant message: `[fresh, cache_read, model, session]` under a short hash of its id.
+
+    A resumed or forked session copies earlier messages, ids included, into a new file. The
+    first entry for an id wins, in one scan and when per-file records are merged, so a copied
+    message is counted once.
+    """
+
+    def add(self, message_key, fresh, cache_read, model, session):
+        digest = hashlib.sha256(str(message_key).encode("utf-8")).hexdigest()[:12]
+        self.setdefault(digest, [fresh, cache_read, model, session])
+
+
 class Pop:
     """One population: interactive, headless or subagent. `inventory` is a `scan_coverage.Index` or None."""
 
     def __init__(self, inventory=None):
         self.sessions = set()
         self.user_msgs = 0
-        self.fresh = 0
-        self.cache_read = 0
-        self.by_model = collections.Counter()
+        self.usage = UsageLedger()
         self.first_req = []
         self.tools = collections.Counter()
         self.skills = collections.Counter()
@@ -94,10 +105,27 @@ class Pop:
         self.secret_hits = 0
         self.malformed = 0
         self.prompts = collections.defaultdict(scan_patterns.PromptCluster)
-        self.session_fresh = collections.Counter()
-        self.msg_ids = set()
         self.patterns = scan_patterns.Patterns()
         self.coverage = scan_coverage.Coverage(inventory)
+
+    @property
+    def fresh(self):
+        return sum(entry[0] for entry in self.usage.values())
+
+    @property
+    def cache_read(self):
+        return sum(entry[1] for entry in self.usage.values())
+
+    @property
+    def by_model(self):
+        return collections.Counter(entry[2] for entry in self.usage.values())
+
+    @property
+    def session_fresh(self):
+        totals = collections.Counter()
+        for fresh, _, _, session in self.usage.values():
+            totals[session] += fresh
+        return totals
 
 
 def classify_line(raw, pop):
@@ -167,13 +195,11 @@ def record_assistant(ev, pop, sess, when):
     msg = ev.get("message") or {}
     usage = msg.get("usage") or {}
     mid = msg.get("id")
-    if usage and (mid is None or mid not in pop.msg_ids):
-        pop.msg_ids.add(mid)
+    if usage and (mid is None or mid not in sess.msg_ids):
+        sess.msg_ids.add(mid)
         fresh = usage.get("input_tokens", 0) + usage.get("cache_creation_input_tokens", 0) + usage.get("output_tokens", 0)
-        pop.fresh += fresh
-        pop.session_fresh[sess.name] += fresh
-        pop.cache_read += usage.get("cache_read_input_tokens", 0)
-        pop.by_model[msg.get("model", "?")] += 1
+        message_key = mid or ev.get("uuid") or f"{sess.name}:{pop.coverage.line}"
+        pop.usage.add(message_key, fresh, usage.get("cache_read_input_tokens", 0), msg.get("model", "?"), sess.name)
         scan_patterns.on_usage(usage, sess, pop.patterns)
         if not sess.first_seen:
             sess.first_seen = True
