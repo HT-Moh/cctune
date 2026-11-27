@@ -95,6 +95,7 @@ class Session:
     def __init__(self, name):
         self.name = name
         self.pending = {}
+        self.msg_ids = set()
         self.first_seen = False
         self.first_tool = None
         self.after_edit_msgs = None

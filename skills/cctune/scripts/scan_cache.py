@@ -5,7 +5,8 @@ stored as JSON under `~/.claude/tune/work/cache/`: counters, hashes and session 
 shape as `scan.json` and guarded by the same secret check. A record is reused when the file's
 size and mtime, the scanner's source and the inventory are unchanged, and the window still
 covers every event the record counted. `encode` and `merge_into` walk a `Pop` generically: a
-Counter adds, a set unions, a list extends, a number sums, an object merges field by field.
+Counter adds, a set unions, a list extends, a number sums, an object merges field by field. The
+usage ledger keeps the first entry per message, so a message copied into a second file counts once.
 """
 import collections
 import glob
@@ -22,8 +23,8 @@ CACHE_DIR = os.path.join(os.path.expanduser("~"), ".claude", "tune", "work", "ca
 DEFAULT_MAX_AGE_DAYS = 90
 HEAD_BYTES = 400000
 TIMESTAMP_RE = re.compile(r'"timestamp":\s*"([^"]{10,40})"')
-# Per-session scratch and the inventory index live outside the record; `msg_ids` only dedupes within one file.
-EXCLUDED_FIELDS = frozenset({"index", "msg_ids", "line"})
+# The inventory index and the current line number live outside the record.
+EXCLUDED_FIELDS = frozenset({"index", "line"})
 
 
 def scanner_version(script_dir, inventory_path):
@@ -72,7 +73,10 @@ def encode(value):
 
 def merge_into(target, data):
     """Add `data` (an encoded value) into `target`; returns the merged value for scalar fields."""
-    if isinstance(target, collections.Counter):
+    if isinstance(target, scan_lib.UsageLedger):
+        for key, entry in data.items():
+            target.setdefault(key, entry)
+    elif isinstance(target, collections.Counter):
         target.update(data)
     elif isinstance(target, dict):
         for key, value in data.items():
